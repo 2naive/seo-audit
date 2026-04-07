@@ -221,10 +221,12 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
 1. Сделай скриншот:
-   - Убедись, что активна именно та вкладка с egrul.org (tabId из шага 0) — вызови `mcp__claude-in-chrome__tabs_context_mcp` и убедись, что нужная вкладка активна
-   - Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot)
-   - Полученный base64-PNG сохрани в файл: используй Bash команду `echo "BASE64_DATA" | base64 -d > "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` (замени BASE64_DATA на реальные данные из ответа инструмента)
-   - Проверь: `ls -lh "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` — файл должен быть > 50 KB
+   - Вызови `mcp__claude-in-chrome__tabs_context_mcp` — убедись что tabId из шага 0 активен и показывает `$ARGUMENTS`
+   - Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) — инструмент вернёт изображение
+   - Из ответа инструмента извлеки base64-строку PNG (содержимое поля `data`)
+   - Запиши base64-строку в текстовый файл через Write-инструмент: `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64`
+   - Декодируй в PNG: `base64 -d "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64"`
+   - Проверь результат: `ls -lh "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` — файл должен быть > 50 KB; если меньше — скриншот не удался, запиши null в screenshotPaths.desktop
 
 2. Выполни через `mcp__claude-in-chrome__javascript_tool` (используй тот же tabId):
 ```javascript
@@ -307,7 +309,7 @@ JSON.stringify({
 ```
 
 ### 2.2 Мобильный вид
-Измени размер окна через `mcp__claude-in-chrome__resize_window` на 390×844. Перейди на страницу через `mcp__claude-in-chrome__navigate` (тот же tabId). Убедись через `mcp__claude-in-chrome__tabs_context_mcp` что нужная вкладка активна. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) и сохрани аналогично шагу 2.1: `echo "BASE64" | base64 -d > "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png"`. Проверь через `mcp__claude-in-chrome__javascript_tool`: текст ≥ 12px, кнопки ≥ 48px, нет горизонтального скролла.
+Измени размер окна через `mcp__claude-in-chrome__resize_window` на 390×844. Перейди на страницу через `mcp__claude-in-chrome__navigate` (тот же tabId). Убедись через `mcp__claude-in-chrome__tabs_context_mcp` что нужная вкладка активна. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot). Извлеки base64-строку из ответа, запиши через Write-инструмент в `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64`, затем: `base64 -d "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64"`. Проверь через `mcp__claude-in-chrome__javascript_tool`: текст ≥ 12px, кнопки ≥ 48px, нет горизонтального скролла.
 
 ### 2.3 Lighthouse
 ```bash
@@ -394,7 +396,7 @@ console.log(JSON.stringify({
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.4.0",
+  "skillVersion": "1.4.1",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,

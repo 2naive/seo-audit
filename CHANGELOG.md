@@ -1,5 +1,18 @@
 # Changelog — SEO Audit Skill
 
+## [1.4.1] — 2026-04-07
+
+### Fixed
+- **Скриншоты всегда были от предыдущего сайта** (pharm-studio.ru) — все PNG-файлы имели одинаковый MD5 хеш across всех запусков.
+
+  Root cause: `echo "BASE64_DATA" | base64 -d > file.png` физически не работает для больших строк (PNG screenshot = сотни КБ base64). Bash молча обрезал данные или команда падала, агент копировал старый файл.
+
+  Fix: инструкция изменена на двухшаговый процесс:
+  1. Write-инструментом записать base64-строку из ответа `mcp__claude-in-chrome__computer` в текстовый `.b64` файл
+  2. Декодировать через bash: `base64 -d file.b64 > file.png && rm file.b64`
+
+- Удалён `take-screenshot.js` — Chrome headless `--screenshot` не создаёт файл на этой Windows-конфигурации (Chrome открывает вкладку в существующей сессии вместо headless-режима)
+
 ## [1.4.0] — 2026-04-07
 
 ### Added (SKILL.md)
