@@ -231,13 +231,13 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
-1. Сделай скриншот:
+1. **Десктоп-скриншот через Claude Chrome Extension** (не из Lighthouse — Lighthouse снимает мобильный viewport):
    - Вызови `mcp__claude-in-chrome__tabs_context_mcp` — убедись что tabId из шага 0 активен и показывает `$ARGUMENTS`
-   - Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) — инструмент вернёт изображение
-   - Из ответа инструмента извлеки base64-строку PNG (содержимое поля `data`)
-   - Запиши base64-строку в текстовый файл через Write-инструмент: `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64`
-   - Декодируй в PNG: `base64 -d "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64"`
-   - Проверь результат: `ls -lh "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` — файл должен быть > 50 KB; если меньше — скриншот не удался, запиши null в screenshotPaths.desktop
+   - Вызови `mcp__claude-in-chrome__computer` с action: `screenshot` — получишь PNG в десктопном viewport
+   - Из ответа извлеки base64-строку PNG (поле `data`)
+   - Запиши через Write-инструмент в файл: `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64`
+   - Декодируй: `base64 -d "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64"`
+   - Проверь: `ls -lh "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` — файл должен быть **> 50 KB**; если меньше или не создан — запиши `null` в `screenshotPaths.desktop`
 
 2. Выполни через `mcp__claude-in-chrome__javascript_tool` (используй тот же tabId):
 ```javascript
@@ -499,8 +499,8 @@ if (shot) {
     }
   },
   "screenshotPaths": {
-    "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png",
-    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"
+    "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png",  // PNG из Chrome Extension (шаг 2.1)
+    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"     // JPG из Lighthouse final-screenshot (шаг 2.3)
   },
   "technical": [
     { "check": "HTTPS", "status": "ok|warning|critical|info", "value": "..." },
