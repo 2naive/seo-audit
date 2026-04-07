@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const { readFileSync, writeFileSync, mkdirSync } = require('fs');
+const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
 const { resolve } = require('path');
 
@@ -72,9 +72,18 @@ function difficultyBadge(d) {
   return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${label}</span>`;
 }
 
+// ── Screenshot → base64 ───────────────────────────────────────────────────────
+function screenshotBase64(filePath) {
+  if (!filePath || !existsSync(filePath)) return null;
+  try {
+    const buf = readFileSync(filePath);
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  } catch { return null; }
+}
+
 // ── HTML template ─────────────────────────────────────────────────────────────
 function buildHTML(data) {
-  const { url, date, mode, summary, scores, scoreDetails, pages, recommendations, technical, lighthouse } = data;
+  const { url, date, mode, summary, scores, scoreDetails, pages, recommendations, technical, lighthouse, screenshotPaths } = data;
 
   const totalScore = scores
     ? (Object.values(scores).filter(v => v !== null).reduce((a, b) => a + b, 0) /
@@ -176,7 +185,7 @@ function buildHTML(data) {
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 10px 12px; background: #f8fafc; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
   .mode-badge { display:inline-block; padding:4px 12px; border-radius:6px; font-size:13px; font-weight:600; background:rgba(255,255,255,.2); margin-top:8px; }
-  @page { size: A4; margin: 16mm 14mm; }
+  @page { size: A4; margin: 16mm 14mm; @bottom-right { content: "Стр. " counter(page) " / " counter(pages); font-size: 10px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } }
   @media print {
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 0; max-width: 100%; }
@@ -302,6 +311,56 @@ function buildHTML(data) {
     </table>
   </div>` : ''}
 
+  <!-- Screenshots -->
+  ${(() => {
+    const desktopSrc = screenshotBase64(screenshotPaths?.desktop);
+    const mobileSrc  = screenshotBase64(screenshotPaths?.mobile);
+    if (!desktopSrc && !mobileSrc) return '';
+    return `
+  <div class="card">
+    <h2>Скриншоты сайта</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+      ${desktopSrc ? `<div>
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Десктоп</div>
+        <img src="${desktopSrc}" style="width:100%;border:1px solid #e2e8f0;border-radius:8px" alt="Desktop screenshot">
+      </div>` : ''}
+      ${mobileSrc ? `<div>
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Мобильный</div>
+        <img src="${mobileSrc}" style="width:100%;border:1px solid #e2e8f0;border-radius:8px" alt="Mobile screenshot">
+      </div>` : ''}
+    </div>
+  </div>`;
+  })()}
+
+  <!-- Top-5 ROI actions -->
+  ${(() => {
+    const recs = recommendations ?? [];
+    const top5 = recs
+      .filter(r => r.priority === 'high' && r.difficulty !== 'high')
+      .slice(0, 3)
+      .concat(recs.filter(r => r.priority === 'high' && r.difficulty === 'high').slice(0, 2))
+      .concat(recs.filter(r => r.priority !== 'high').slice(0, 2))
+      .slice(0, 5);
+    if (!top5.length) return '';
+    const roiItems = top5.map((r, i) => `
+      <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid #f1f5f9">
+        <div style="min-width:32px;height:32px;background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">${i + 1}</div>
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px">${esc(r.title)}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${r.priority ? priorityBadge(r.priority) : ''}
+            ${r.difficulty ? difficultyBadge(r.difficulty) : ''}
+          </div>
+        </div>
+      </div>`).join('');
+    return `
+  <div class="card" style="border-color:#1e40af;border-width:2px">
+    <h2 style="color:#1e40af">Топ-5 действий с максимальным ROI</h2>
+    <div style="font-size:13px;color:#64748b;margin-bottom:12px">Исправьте эти пункты в первую очередь — они дадут максимальный результат при минимальных затратах.</div>
+    ${roiItems}
+  </div>`;
+  })()}
+
   <div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:32px">
     SEO Audit от Nedzelsky.pro · ${url} · ${date}
   </div>
@@ -341,7 +400,6 @@ console.log(`HTML → ${htmlPath}`);
 const chrome = findChrome();
 if (chrome) {
   try {
-    const { existsSync } = require('fs');
     const pdfFwd  = pdfPath.replace(/\\/g, '/');
     const htmlFwd = htmlPath.replace(/\\/g, '/');
     const cmd = `"${chrome}" --headless=new --disable-gpu --no-sandbox --print-to-pdf="${pdfFwd}" --print-to-pdf-no-header "file:///${htmlFwd}"`;

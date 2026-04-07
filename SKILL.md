@@ -193,6 +193,17 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 - количество H1 (ровно один)
 - canonical (совпадает с URL страницы)
 - наличие хлебных крошек
+- дата публикации / обновления (`<time datetime>`, meta, видимый текст) — важный E-E-A-T сигнал
+
+**После проверки всех страниц** сравни title между собой — если два title совпадают полностью, это дубль (критично). Аналогично для description.
+
+### 1.9 Дополнительные структурные проверки
+Для главной страницы через WebFetch проверь:
+- Идентификаторы сессий в URL: нет ли `?PHPSESSID=`, `?sid=`, `?session=` в ссылках (засоряют индекс)
+- Страницы пагинации: если есть `/page/`, `/p/` — проверь, что title/canonical не дублируют главную
+- HTML-карта сайта: проверь `/sitemap/`, `/map/`, `/html-sitemap` — нужна ли она
+- Страница «О компании»: если нашлась — получи её через WebFetch и проверь наличие: история компании, специализация, контактные данные, упоминание сотрудников/специалистов
+- Политика конфиденциальности: проверь наличие и актуальность (год в тексте)
 
 ---
 
@@ -201,7 +212,7 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` в Chrome. Затем:
 
-1. Сделай скриншот → `seo-audit-output/desktop-${DOMAIN}-${DATETIME}.png`
+1. Сделай скриншот → `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png`
 
 2. Выполни в консоли браузера:
 ```javascript
@@ -254,11 +265,28 @@ JSON.stringify({
   .slice(0, 20)
   .map(a => ({ text: a.textContent.trim().slice(0, 50), href: a.pathname }))
 ```
+Оцени анкоры: «подробнее», «здесь», «нажмите» — плохие анкоры; конкретные ключевые слова — хорошие.
+
+6. Проверь скрытый контент (потенциально чёрная SEO-техника):
+```javascript
+JSON.stringify({
+  hiddenTextElements: [...document.querySelectorAll('*')].filter(el => {
+    const s = window.getComputedStyle(el);
+    return el.textContent.trim().length > 20 && (
+      s.display === 'none' || s.visibility === 'hidden' ||
+      parseFloat(s.fontSize) < 5 || s.color === s.backgroundColor
+    );
+  }).map(el => ({ tag: el.tagName, text: el.textContent.trim().slice(0, 80) })).slice(0, 5),
+  zeroSizeLinks: [...document.querySelectorAll('a[href]')].filter(a => {
+    const r = a.getBoundingClientRect(); return r.width < 2 && r.height < 2;
+  }).length
+})
+```
 
 ### 2.2 Мобильный вид
 Эмулируй мобильное устройство (DevTools → Toggle Device Toolbar → iPhone 14, viewport 390×844). Затем:
 1. Перезагрузи страницу
-2. Сделай скриншот → `seo-audit-output/mobile-${DOMAIN}-${DATETIME}.png`
+2. Сделай скриншот → `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png`
 3. Проверь: текст читаем (≥ 12px), кнопки ≥ 48px, нет горизонтального скролла, шрифты не слишком мелкие
 
 ### 2.3 Lighthouse
@@ -320,6 +348,8 @@ console.log(JSON.stringify({
 ## Фаза 3 — Формирование данных отчёта
 
 Собери все данные в JSON-файл `${REPORT_JSON}` (полный путь из инициализации).
+
+**Важно по `screenshotPaths`**: используй абсолютные пути к реально сохранённым PNG-файлам. Если файл не был создан (базовый режим без Chrome), укажи `null`. generate-report.js встроит изображения в HTML/PDF через base64.
 
 **Важно**: каждая рекомендация должна содержать:
 - `priority`: "high" | "medium" | "low" — влияние на ранжирование
@@ -394,6 +424,10 @@ console.log(JSON.stringify({
       "TTI": "3.8 s"
     }
   },
+  "screenshotPaths": {
+    "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png",
+    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png"
+  },
   "technical": [
     { "check": "HTTPS", "status": "ok|warning|critical|info", "value": "..." },
     { "check": "www → non-www редирект", "status": "...", "value": "..." },
@@ -423,12 +457,20 @@ console.log(JSON.stringify({
     { "check": "E-E-A-T: О компании", "status": "...", "value": "..." },
     { "check": "E-E-A-T: FAQ", "status": "...", "value": "..." },
     { "check": "URL структура", "status": "...", "value": "..." },
-    { "check": "Сервер", "status": "info", "value": "..." }
+    { "check": "Сервер", "status": "info", "value": "..." },
+    { "check": "Дублирующиеся title", "status": "...", "value": "..." },
+    { "check": "Дублирующиеся description", "status": "...", "value": "..." },
+    { "check": "Скрытый контент (hidden text)", "status": "...", "value": "..." },
+    { "check": "Session ID в URL", "status": "...", "value": "..." },
+    { "check": "Качество анкоров внутренних ссылок", "status": "...", "value": "..." },
+    { "check": "Яндекс.Вебмастер (верификация)", "status": "...", "value": "..." }
   ]
 }
 ```
 
 Заполни корректными значениями. Оценки — по шкале 1–10. При отсутствии данных используй null.
+
+**Требование к `scoreDetails`**: поле обязательно для каждой категории в `scores`. Каждый элемент — конкретный факт с иконкой статуса (✅/🔴/⚠️), например: `"✅ title 52 симв."`, `"🔴 description 285 симв. (норма 70-160)"`. Не оставляй пустые массивы.
 
 ---
 
