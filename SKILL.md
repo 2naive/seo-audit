@@ -261,12 +261,12 @@ JSON.stringify({
 2. Сделай скриншот → `seo-audit-output/mobile-${DOMAIN}-${DATETIME}.png`
 3. Проверь: текст читаем (≥ 12px), кнопки ≥ 48px, нет горизонтального скролла, шрифты не слишком мелкие
 
-### 2.3 Проверка Lighthouse
+### 2.3 Lighthouse
 ```bash
-lighthouse --version 2>/dev/null && echo "LIGHTHOUSE_OK" || echo "LIGHTHOUSE_MISSING"
+# Установить если отсутствует
+lighthouse --version 2>/dev/null || npm install -g lighthouse
 ```
 
-**Если Lighthouse установлен** (`LIGHTHOUSE_OK`):
 ```bash
 lighthouse "$ARGUMENTS" \
   --output json \
@@ -297,12 +297,6 @@ console.log(JSON.stringify({
 ```
 
 Сохрани результат в поле `lighthouse` в `report-data.json`.
-
-**Если Lighthouse НЕ установлен** — запиши в JSON:
-```json
-"lighthouse": { "available": false }
-```
-И отметь в отчёте: `ℹ️ Lighthouse не установлен — установи через: npm install -g lighthouse`
 
 ### 2.4 Проверка дополнительных страниц
 Для 2–3 URL из sitemap — повтори шаги 1.5 и консольный скрипт из 2.1 (без скриншотов).

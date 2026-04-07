@@ -236,17 +236,7 @@ function buildHTML(data) {
 
   <!-- Lighthouse -->
   ${lighthouse ? (() => {
-    if (!lighthouse.available) return `
-  <div class="card" style="border-left:4px solid #f59e0b">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:20px">ℹ️</span>
-      <div>
-        <div style="font-weight:700">Lighthouse не установлен</div>
-        <div style="color:#64748b;font-size:13px;margin-top:4px">Для получения метрик Core Web Vitals (LCP, CLS, FCP, TBT) установите Lighthouse:<br>
-        <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">npm install -g lighthouse</code></div>
-      </div>
-    </div>
-  </div>`;
+    if (!lighthouse.available) return '';
     const lhScoreColor = s => s >= 90 ? '#22c55e' : s >= 50 ? '#f59e0b' : '#ef4444';
     const cats = [
       { label: 'Performance', val: lighthouse.performance },
