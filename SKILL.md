@@ -397,7 +397,7 @@ console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
 
 ```markdown
 # SEO Аудит: [ДОМЕН]
-**Дата**: [YYYY-MM-DD HH:MM] | **Сайт**: [URL] | **Инструмент**: Claude Code SEO Audit
+**Дата**: [YYYY-MM-DD HH:MM] | **Сайт**: [URL] | **Инструмент**: SEO Audit от Nedzelsky.pro
 
 > [⚠️ Базовый режим / ✅ Полный режим Chrome]
 

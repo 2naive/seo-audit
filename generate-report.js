@@ -250,7 +250,7 @@ function buildHTML(data) {
   </div>` : ''}
 
   <div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:32px">
-    Сгенерировано Claude Code SEO Audit · ${url} · ${date}
+    SEO Audit от Nedzelsky.pro · ${url} · ${date}
   </div>
 
 </div>
