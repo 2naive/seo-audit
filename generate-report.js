@@ -74,25 +74,33 @@ function difficultyBadge(d) {
 
 // ── HTML template ─────────────────────────────────────────────────────────────
 function buildHTML(data) {
-  const { url, date, mode, summary, scores, pages, recommendations, technical } = data;
+  const { url, date, mode, summary, scores, scoreDetails, pages, recommendations, technical, lighthouse } = data;
 
   const totalScore = scores
     ? (Object.values(scores).filter(v => v !== null).reduce((a, b) => a + b, 0) /
        Object.values(scores).filter(v => v !== null).length).toFixed(1)
     : 'N/A';
 
-  const scoresRows = scores ? Object.entries(scores).filter(([,v]) => v !== null).map(([cat, val]) => `
+  const scoresRows = scores ? Object.entries(scores).filter(([,v]) => v !== null).map(([cat, val]) => {
+    const details = scoreDetails?.[cat] ?? [];
+    const detailsHtml = details.length
+      ? `<div style="margin-top:6px;font-size:12px;color:#475569;line-height:1.7">${details.map(d => `<div>${d}</div>`).join('')}</div>`
+      : '';
+    return `
     <tr>
-      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">${cat}</td>
-      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;vertical-align:top">
+        <div style="font-weight:500">${cat}</div>${detailsHtml}
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center;vertical-align:top">
         <span style="font-size:18px;font-weight:700;color:${scoreColor(val)}">${val}</span><span style="color:#94a3b8">/10</span>
       </td>
-      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
-        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;vertical-align:top">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px;margin-top:4px">
           <div style="background:${scoreColor(val)};width:${val * 10}%;height:8px;border-radius:99px"></div>
         </div>
       </td>
-    </tr>`).join('') : '';
+    </tr>`;
+  }).join('') : '';
 
   const issuesList = (pages ?? []).flatMap(p =>
     (p.issues ?? []).map(i => `
@@ -225,6 +233,48 @@ function buildHTML(data) {
       <tbody>${scoresRows}</tbody>
     </table>
   </div>` : ''}
+
+  <!-- Lighthouse -->
+  ${lighthouse ? (() => {
+    if (!lighthouse.available) return `
+  <div class="card" style="border-left:4px solid #f59e0b">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">ℹ️</span>
+      <div>
+        <div style="font-weight:700">Lighthouse не установлен</div>
+        <div style="color:#64748b;font-size:13px;margin-top:4px">Для получения метрик Core Web Vitals (LCP, CLS, FCP, TBT) установите Lighthouse:<br>
+        <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">npm install -g lighthouse</code></div>
+      </div>
+    </div>
+  </div>`;
+    const lhScoreColor = s => s >= 90 ? '#22c55e' : s >= 50 ? '#f59e0b' : '#ef4444';
+    const cats = [
+      { label: 'Performance', val: lighthouse.performance },
+      { label: 'SEO', val: lighthouse.seo },
+      { label: 'Accessibility', val: lighthouse.accessibility },
+      { label: 'Best Practices', val: lighthouse.bestPractices },
+    ].filter(c => c.val != null);
+    const metrics = lighthouse.metrics ?? {};
+    return `
+  <div class="card">
+    <h2>Lighthouse</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:${Object.keys(metrics).length ? '20px' : '0'}">
+      ${cats.map(c => `
+      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:32px;font-weight:800;color:${lhScoreColor(c.val)}">${c.val}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">${c.label}</div>
+      </div>`).join('')}
+    </div>
+    ${Object.keys(metrics).length ? `
+    <div style="border-top:1px solid #f1f5f9;padding-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">
+      ${Object.entries(metrics).map(([k, v]) => `
+      <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:15px;font-weight:700;color:#1e293b">${esc(String(v))}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px">${k}</div>
+      </div>`).join('')}
+    </div>` : ''}
+  </div>`;
+  })() : ''}
 
   <!-- Recommendations grouped by priority -->
   ${recs.length ? `

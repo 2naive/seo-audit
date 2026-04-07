@@ -261,27 +261,48 @@ JSON.stringify({
 2. Сделай скриншот → `seo-audit-output/mobile-${DOMAIN}-${DATETIME}.png`
 3. Проверь: текст читаем (≥ 12px), кнопки ≥ 48px, нет горизонтального скролла, шрифты не слишком мелкие
 
-### 2.3 Проверка Lighthouse (если доступен)
+### 2.3 Проверка Lighthouse
+```bash
+lighthouse --version 2>/dev/null && echo "LIGHTHOUSE_OK" || echo "LIGHTHOUSE_MISSING"
+```
+
+**Если Lighthouse установлен** (`LIGHTHOUSE_OK`):
 ```bash
 lighthouse "$ARGUMENTS" \
   --output json \
   --chrome-flags="--headless=new" \
   --only-categories=seo,performance,accessibility,best-practices \
-  --output-path seo-audit-output/lighthouse-${DATETIME}.json \
-  --quiet 2>/dev/null && echo "Lighthouse OK" || echo "Lighthouse not installed"
-```
+  --output-path "${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json" \
+  --quiet 2>/dev/null
 
-Если Lighthouse доступен — извлеки оценки:
-```bash
-cat seo-audit-output/lighthouse-${DATETIME}.json | node -e "
-const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+node -e "
+const d = JSON.parse(require('fs').readFileSync('${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json','utf8'));
 const cats = d.categories;
-console.log('SEO:', Math.round(cats.seo?.score*100));
-console.log('Performance:', Math.round(cats.performance?.score*100));
-console.log('Accessibility:', Math.round(cats.accessibility?.score*100));
-console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
+const aud = d.audits;
+console.log(JSON.stringify({
+  performance: Math.round((cats.performance?.score||0)*100),
+  seo: Math.round((cats.seo?.score||0)*100),
+  accessibility: Math.round((cats.accessibility?.score||0)*100),
+  bestPractices: Math.round((cats['best-practices']?.score||0)*100),
+  metrics: {
+    FCP: aud['first-contentful-paint']?.displayValue,
+    LCP: aud['largest-contentful-paint']?.displayValue,
+    TBT: aud['total-blocking-time']?.displayValue,
+    CLS: aud['cumulative-layout-shift']?.displayValue,
+    SI:  aud['speed-index']?.displayValue,
+    TTI: aud['interactive']?.displayValue
+  }
+}));
 " 2>/dev/null
 ```
+
+Сохрани результат в поле `lighthouse` в `report-data.json`.
+
+**Если Lighthouse НЕ установлен** — запиши в JSON:
+```json
+"lighthouse": { "available": false }
+```
+И отметь в отчёте: `ℹ️ Lighthouse не установлен — установи через: npm install -g lighthouse`
 
 ### 2.4 Проверка дополнительных страниц
 Для 2–3 URL из sitemap — повтори шаги 1.5 и консольный скрипт из 2.1 (без скриншотов).
@@ -352,6 +373,33 @@ console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
       ]
     }
   ],
+  "scoreDetails": {
+    "Мета-теги": ["✅ title 57 симв.", "🔴 description 276 симв. (норма 70-160)", "✅ canonical корректный"],
+    "Структура контента": ["🔴 H1 отсутствует на главной", "✅ H2/H3 структура есть"],
+    "Технические факторы": ["🔴 gzip отключён", "⚠️ TTFB 482ms", "✅ HTTPS, редиректы OK"],
+    "Мобильность": ["✅ viewport корректный", "⚠️ 3 кнопки < 48px", "✅ нет горизонтального скролла"],
+    "Скорость загрузки": ["⚠️ TTFB: 482ms (норма <200ms)", "🔴 gzip отключён", "⚠️ HTML 99KB без сжатия", "⚠️ Cache-Control max-age=3"],
+    "Open Graph / Соцсети": ["🔴 og:title отсутствует", "🔴 og:image отсутствует"],
+    "Структурированные данные": ["✅ WebPage, BreadcrumbList", "⚠️ нет Organization с адресом", "⚠️ нет Drug/MedicalWebPage"],
+    "E-E-A-T и контент": ["⚠️ нет страницы О компании", "⚠️ нет FAQ", "✅ политика конфиденциальности есть"],
+    "Внутренняя перелинковка": ["✅ навигационное меню есть", "⚠️ нет хлебных крошек", "✅ 47 внутренних ссылок"],
+    "Аналитика": ["✅ Яндекс.Метрика установлена", "⚠️ GSC верификация не найдена"]
+  },
+  "lighthouse": {
+    "available": true,
+    "performance": 72,
+    "seo": 85,
+    "accessibility": 68,
+    "bestPractices": 79,
+    "metrics": {
+      "FCP": "1.2 s",
+      "LCP": "3.4 s",
+      "TBT": "120 ms",
+      "CLS": "0.05",
+      "SI": "2.1 s",
+      "TTI": "3.8 s"
+    }
+  },
   "technical": [
     { "check": "HTTPS", "status": "ok|warning|critical|info", "value": "..." },
     { "check": "www → non-www редирект", "status": "...", "value": "..." },
