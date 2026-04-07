@@ -297,9 +297,21 @@ console.log(`HTML → ${htmlPath}`);
 const chrome = findChrome();
 if (chrome) {
   try {
-    const cmd = `"${chrome}" --headless=new --disable-gpu --no-sandbox --print-to-pdf="${pdfPath}" --print-to-pdf-no-header "file:///${htmlPath.replace(/\\/g, '/')}"`;
+    const { existsSync } = require('fs');
+    const pdfFwd  = pdfPath.replace(/\\/g, '/');
+    const htmlFwd = htmlPath.replace(/\\/g, '/');
+    const cmd = `"${chrome}" --headless=new --disable-gpu --no-sandbox --print-to-pdf="${pdfFwd}" --print-to-pdf-no-header "file:///${htmlFwd}"`;
     execSync(cmd, { stdio: 'pipe', timeout: 30_000 });
-    console.log(`PDF  → ${pdfPath}`);
+    // Chrome may flush async — wait up to 5s for file to appear
+    const deadline = Date.now() + 5000;
+    while (!existsSync(pdfPath) && Date.now() < deadline) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+    }
+    if (existsSync(pdfPath)) {
+      console.log(`PDF  → ${pdfPath}`);
+    } else {
+      console.warn('PDF not found after Chrome completed — check Chrome permissions or disk space.');
+    }
   } catch (e) {
     console.error('PDF generation failed:', e.message);
     console.log('HTML report is still available.');
