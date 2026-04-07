@@ -2,7 +2,7 @@
 name: seo-audit
 description: Full SEO audit — meta tags, JS-rendered content, Core Web Vitals, E-E-A-T, internal links, schema, analytics checks. Generates Markdown + HTML + PDF report.
 argument-hint: "[URL сайта]"
-allowed-tools: Bash WebFetch Read Write mcp__claude-in-chrome__navigate mcp__claude-in-chrome__javascript_tool mcp__claude-in-chrome__computer mcp__claude-in-chrome__tabs_context_mcp mcp__claude-in-chrome__tabs_create_mcp mcp__claude-in-chrome__resize_window mcp__claude-in-chrome__get_page_text mcp__claude-in-chrome__read_console_messages
+allowed-tools: Bash WebFetch Read Write mcp__claude-in-chrome__navigate mcp__claude-in-chrome__javascript_tool mcp__claude-in-chrome__computer mcp__claude-in-chrome__tabs_context_mcp mcp__claude-in-chrome__tabs_create_mcp mcp__claude-in-chrome__get_page_text mcp__claude-in-chrome__read_console_messages
 context: fork
 agent: general-purpose
 ---
@@ -17,9 +17,20 @@ agent: general-purpose
 
 **Перед любыми другими действиями** проверь доступность Chrome-интеграции.
 
-Попробуй выполнить навигацию в браузере: используй инструмент `mcp__claude-in-chrome__navigate` с URL `$ARGUMENTS`. Перед вызовом `navigate` сначала получи список вкладок через `mcp__claude-in-chrome__tabs_context_mcp`, затем создай новую вкладку через `mcp__claude-in-chrome__tabs_create_mcp` и используй её `tabId` для `navigate`.
+Выбери вкладку для аудита — **не создавай новую без необходимости**:
 
-### Если mcp__claude-in-chrome__navigate недоступен или вернул ошибку подключения:
+1. Вызови `mcp__claude-in-chrome__tabs_context_mcp` — получи список открытых вкладок
+2. Выбери tabId по приоритету:
+   - **Приоритет 1**: вкладка с URL `about:blank` или `chrome://newtab/` — переиспользовать
+   - **Приоритет 2**: вкладка с тем же доменом что в `$ARGUMENTS` — переиспользовать
+   - **Приоритет 3**: если все вкладки содержат важный контент пользователя — только тогда создай новую через `mcp__claude-in-chrome__tabs_create_mcp`
+3. Выполни `mcp__claude-in-chrome__navigate` с выбранным tabId и URL `$ARGUMENTS`
+4. Сохрани этот tabId — используй его во всех последующих шагах фазы 2
+
+По завершении аудита (после генерации отчётов) — верни вкладку на `about:blank`:
+`mcp__claude-in-chrome__navigate` → tabId, url: `about:blank`
+
+### Если mcp__claude-in-chrome__tabs_context_mcp недоступен или navigate вернул ошибку подключения:
 
 Сообщи пользователю:
 
@@ -48,9 +59,9 @@ agent: general-purpose
 - Если "да" — продолжи, пропуская **Фазу 2** (все Chrome-шаги), отметь в отчёте: `⚠️ Базовый режим — Chrome недоступен`
 - Иначе — останови выполнение
 
-### Если mcp__claude-in-chrome__navigate выполнился успешно:
+### Если navigate выполнился успешно:
 
-Выведи: `✅ Chrome подключён — запускаю полный аудит`
+Выведи: `✅ Chrome подключён — tabId: [N], запускаю полный аудит`
 
 Продолжай со всеми фазами включая скриншоты и JS-анализ.
 
@@ -81,7 +92,7 @@ REPORT_MD="${OUTPUT_DIR}/${REPORT_BASE}.md"
 - `${OUTPUT_DIR}/${REPORT_BASE}.pdf`   (генерируется через generate-report.js)
 - `${OUTPUT_DIR}/report-data-${DOMAIN}-${DATETIME}.json`
 - `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png`
-- `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png`
+- `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg`  (извлекается из Lighthouse JSON)
 
 **Важно**: никогда не используй относительные пути `seo-audit-output/...` — только абсолютные через `${OUTPUT_DIR}/...`.
 
@@ -310,19 +321,9 @@ JSON.stringify({
 
 ### 2.2 Мобильный вид
 
-**⚠️ Это отдельный новый скриншот — не переиспользуй base64 от шага 2.1.**
+**Скриншот мобильного вида берётся из Lighthouse (шаг 2.3)** — Lighthouse запускается в мобильном viewport 412px и сохраняет `final-screenshot` в JSON. Извлечение в файл выполняется автоматически после Lighthouse.
 
-Выполни строго по порядку:
-1. `mcp__claude-in-chrome__resize_window` — ширина 390, высота 844
-2. `mcp__claude-in-chrome__navigate` (тот же tabId, тот же URL) — дождись загрузки
-3. Подожди 1 секунду: `sleep 1`
-4. Вызови `mcp__claude-in-chrome__computer` с action: screenshot — **это новый вызов инструмента, результат будет отличаться от шага 2.1**
-5. Из ответа этого вызова извлеки base64-строку (она должна отличаться от десктопной — страница уже в viewport 390px)
-6. Запиши через Write-инструмент в `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64`
-7. `base64 -d "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64"`
-8. Проверь: `ls -lh "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png"` — файл должен быть > 20 KB
-
-Через `mcp__claude-in-chrome__javascript_tool` проверь мобильную вёрстку:
+Здесь только JS-проверка мобильной вёрстки через `mcp__claude-in-chrome__javascript_tool`:
 ```javascript
 JSON.stringify({
   viewportWidth: window.innerWidth,
@@ -369,6 +370,21 @@ console.log(JSON.stringify({
 ```
 
 Сохрани результат в поле `lighthouse` в `report-data.json`.
+
+**Извлечение мобильного скриншота** из Lighthouse JSON (Lighthouse снимает в viewport 412px):
+```bash
+node -e "
+const lh = JSON.parse(require('fs').readFileSync('${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json', 'utf8'));
+const shot = lh.audits['final-screenshot']?.details?.data;
+if (shot) {
+  const b64 = shot.replace('data:image/jpeg;base64,', '');
+  require('fs').writeFileSync('${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg', Buffer.from(b64, 'base64'));
+  console.log('Mobile screenshot saved:', '${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg');
+} else {
+  console.log('No final-screenshot in Lighthouse JSON — mobile screenshot skipped');
+}
+"
+```
 
 ### 2.4 Проверка дополнительных страниц
 Для 2–3 URL из sitemap — перейди через `mcp__claude-in-chrome__navigate` и повтори консольный скрипт из 2.1 через `mcp__claude-in-chrome__javascript_tool` (без скриншотов).
@@ -418,7 +434,7 @@ console.log(JSON.stringify({
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.4.2",
+  "skillVersion": "1.4.3",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -484,7 +500,7 @@ console.log(JSON.stringify({
   },
   "screenshotPaths": {
     "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png",
-    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png"
+    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"
   },
   "technical": [
     { "check": "HTTPS", "status": "ok|warning|critical|info", "value": "..." },
@@ -622,8 +638,8 @@ node "${PROJECT_DIR}/.claude/skills/seo-audit/generate-report.js" "${REPORT_JSON
   seo-audit-output/${REPORT_BASE}.md          — Markdown
   seo-audit-output/${REPORT_BASE}.html        — HTML (открыть в браузере)
   seo-audit-output/${REPORT_BASE}.pdf         — PDF
-  seo-audit-output/desktop-${DOMAIN}-${DATETIME}.png — скриншот десктоп
-  seo-audit-output/mobile-${DOMAIN}-${DATETIME}.png  — скриншот мобильный
+  seo-audit-output/desktop-${DOMAIN}-${DATETIME}.png — скриншот десктоп (Claude Chrome)
+  seo-audit-output/mobile-${DOMAIN}-${DATETIME}.jpg  — скриншот мобильный (из Lighthouse)
 
 Топ-3 приоритетных исправления:
 1. [СРОЧНО, сложность: низкая] ...

@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.4.2';
+const SKILL_VERSION = '1.4.4';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -79,7 +79,8 @@ function screenshotBase64(filePath) {
   if (!filePath || !existsSync(filePath)) return null;
   try {
     const buf = readFileSync(filePath);
-    return `data:image/png;base64,${buf.toString('base64')}`;
+    const mime = /\.(jpe?g)$/i.test(filePath) ? 'jpeg' : 'png';
+    return `data:image/${mime};base64,${buf.toString('base64')}`;
   } catch { return null; }
 }
 
