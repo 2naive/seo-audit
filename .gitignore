@@ -1,0 +1,4 @@
+seo-audit-output/
+*.png
+*.pdf
+lighthouse-*.json
