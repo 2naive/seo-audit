@@ -5,6 +5,8 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
+const SKILL_VERSION = '1.3.2';
+
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
 const { resolve } = require('path');
@@ -162,6 +164,7 @@ function buildHTML(data) {
 
   const stats = summary ?? {};
   const modeLabel = mode === 'full' ? '✅ Полный режим (Chrome)' : '⚠️ Базовый режим (без Chrome)';
+  const reportVersion = data.skillVersion || SKILL_VERSION;
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -206,7 +209,10 @@ function buildHTML(data) {
         <div style="font-size:12px;opacity:.8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.1em">SEO Аудит</div>
         <h1 style="color:#fff">${url}</h1>
         <div style="opacity:.8;margin-top:6px;font-size:14px">${date}</div>
-        <div class="mode-badge">${modeLabel}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <div class="mode-badge">${modeLabel}</div>
+          <div class="mode-badge" style="background:rgba(255,255,255,.12);font-family:monospace">v${reportVersion}</div>
+        </div>
       </div>
       <div style="text-align:center;min-width:100px">
         <div style="font-size:12px;opacity:.8;margin-bottom:4px">Общая оценка</div>
@@ -362,7 +368,7 @@ function buildHTML(data) {
   })()}
 
   <div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:32px">
-    SEO Audit от Nedzelsky.pro · ${url} · ${date}
+    SEO Audit от Nedzelsky.pro · ${esc(url)} · ${esc(date)} · <span style="font-family:monospace">v${reportVersion}</span>
   </div>
 
 </div>
