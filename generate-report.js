@@ -25,6 +25,15 @@ function findChrome() {
   return null;
 }
 
+// ── HTML escape ───────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // ── Score → color ─────────────────────────────────────────────────────────────
 function scoreColor(score) {
   if (score >= 8) return '#22c55e';
@@ -114,7 +123,7 @@ function buildHTML(data) {
         </div>
       </div>
       <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:${r.fix ? '10px' : '0'}">${r.description}</div>
-      ${r.fix ? `<div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">${r.fix}</div>` : ''}
+      ${r.fix ? `<div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">${esc(r.fix)}</div>` : ''}
     </div>`;
   }
 
