@@ -101,7 +101,12 @@ REPORT_MD="${OUTPUT_DIR}/${REPORT_BASE}.md"
 Получи `$ARGUMENTS/sitemap.xml` через WebFetch. Проверь:
 - Формат валиден (XML)
 - Количество URL (менее 8 — очень мало для коммерческого сайта)
-- Нет ли в sitemap редиректов (3xx) или несуществующих страниц (4xx)
+- Нет ли в sitemap редиректов (3xx) или несуществующих страниц (4xx) — проверь HEAD-запросом для 3–5 URL из sitemap:
+  ```bash
+  # Проверка статусов первых 5 URL из sitemap
+  curl -sI "URL1" | grep "^HTTP" && curl -sI "URL2" | grep "^HTTP"
+  ```
+- Нет ли технических/мусорных URL: `*.php?id=`, `?PHPSESSID=`, `/wp-admin/`, `/feed/`, `/tag/`
 - Присутствует ли `<lastmod>` и `<priority>`
 - Извлеки до 5 внутренних URL для дальнейшей проверки страниц
 
@@ -114,6 +119,9 @@ curl -sI "https://www.${DOMAIN}" | grep -Ei "HTTP|Location" 2>/dev/null
 curl -sI "http://${DOMAIN}" | grep -Ei "HTTP|Location" 2>/dev/null
 ```
 Ожидаемый результат: оба варианта дают 301 на основной хост (`https://${DOMAIN}`).
+
+**⚠️ Важно:** если `www.${DOMAIN}` вообще не отвечает (connection refused / timeout) — это **Critical**: поисковики могут считать www и non-www разными сайтами, что влечёт дублирование или потерю части трафика. Фиксируй в отчёте как `status: "critical"`, `value: "www не отвечает совсем — нет DNS-записи или сервер не слушает"`.  
+Если http не редиректит на https — тоже **Critical** (утечка трафика).
 
 ### 1.4 Проверка страницы 404
 ```bash
@@ -253,6 +261,17 @@ JSON.stringify({
   hasFAQ: [...document.querySelectorAll('a[href]')].some(a => /faq|chasto|вопрос/i.test(a.href)) || !!document.querySelector('[itemtype*="FAQPage"], .faq'),
   hasContacts: [...document.querySelectorAll('a[href]')].some(a => /kontakt|contact/i.test(a.href)),
   hasPrivacyPolicy: [...document.querySelectorAll('a[href]')].some(a => /privacy|policy|konfidencialnost|политик/i.test(a.href + a.textContent)),
+  ogLocale: document.querySelector('meta[property="og:locale"]')?.content,
+  ogType: document.querySelector('meta[property="og:type"]')?.content,
+  ogUrl: document.querySelector('meta[property="og:url"]')?.content,
+  hasFooter: !!document.querySelector('footer, [role=contentinfo]'),
+  footerLinksCount: document.querySelectorAll('footer a[href], [role=contentinfo] a[href]').length,
+  footerHasAddress: !!document.querySelector('footer address, [role=contentinfo] address, footer [itemtype*="PostalAddress"]'),
+  footerHasPhone: /\+7|8\s*\(|тел\.|phone/i.test(document.querySelector('footer, [role=contentinfo]')?.textContent || ''),
+  navMenuItems: [...document.querySelectorAll('nav a[href], [role=navigation] a[href]')].filter(a => a.href.startsWith(location.origin)).map(a => ({ text: a.textContent.trim().slice(0, 40), path: a.pathname })).slice(0, 15),
+  publishDate: document.querySelector('time[datetime], meta[property="article:published_time"], meta[name="date"]')?.getAttribute('datetime') || document.querySelector('time[datetime]')?.dateTime,
+  updateDate: document.querySelector('meta[property="article:modified_time"], time[itemprop="dateModified"]')?.content || document.querySelector('time[itemprop="dateModified"]')?.dateTime,
+  authorName: document.querySelector('[itemprop="author"] [itemprop="name"], .author, [rel=author]')?.textContent?.trim(),
   jsErrors: window.__seoErrors || []
 }, null, 2)
 ```
@@ -337,12 +356,17 @@ console.log(JSON.stringify({
   .map(s => { try { return JSON.parse(s.textContent); } catch(e) { return null; } })
   .filter(Boolean)
 ```
-Для фармацевтических/медицинских сайтов проверь наличие:
-- `Organization` — с `name`, `url`, `telephone`, `address` (PostalAddress)
-- `MedicalWebPage` или `Drug` — для страниц препаратов
-- `BreadcrumbList` — на внутренних страницах
-- `FAQPage` — если есть блок FAQ на странице
-- `Article` / `BlogPosting` — на информационных страницах
+Для каждого типа найденной разметки проверь обязательные поля:
+- `Organization` — обязательны `name`, `url`, `telephone`, `address` (с `@type: PostalAddress`)
+- `WebSite` — обязателен `potentialAction` (SearchAction) для Sitelinks Searchbox
+- `BreadcrumbList` — на каждой внутренней странице, `item` с `@id` и `name`
+- `FAQPage` — если есть FAQ-блок, должен быть `mainEntity` с вопросами
+- `Article` / `BlogPosting` — `datePublished`, `dateModified`, `author` обязательны
+- `MedicalWebPage` / `Drug` — для фарм/медицинских сайтов
+
+Укажи ссылки на валидацию в рекомендациях:
+- Google Rich Results Test: `https://search.google.com/test/rich-results`
+- Яндекс Валидатор разметки: `https://webmaster.yandex.ru/tools/microtest/`
 
 ---
 
@@ -352,17 +376,25 @@ console.log(JSON.stringify({
 
 **Важно по `screenshotPaths`**: используй абсолютные пути к реально сохранённым PNG-файлам. Если файл не был создан (базовый режим без Chrome), укажи `null`. generate-report.js встроит изображения в HTML/PDF через base64.
 
+**Важно по качеству рекомендаций:**
+- Не объединяй разные проблемы в одну рекомендацию. Примеры неверных объединений:
+  - ❌ "Исправить meta description" — если на одних страницах description слишком длинный, а на других отсутствует, это **две отдельные рекомендации**
+  - ❌ "Добавить хлебные крошки" — если на некоторых страницах они есть, укажи конкретно на каких нет
+- `fix` должен содержать **конкретный пример** для данного сайта, не общую фразу. Например: `"Сократить с 203 до 130 символов: «API ЕГРЮЛ и ЕГРИП — бесплатный сервис для проверки компаний по ИНН, ОГРН»"`
+- Для Schema.org всегда давай **готовый JSON-LD код** (не ссылку на документацию)
+- Для nginx/Apache всегда указывай **блок контекста** (`server {}`, `location /`)
+
 **Важно**: каждая рекомендация должна содержать:
 - `priority`: "high" | "medium" | "low" — влияние на ранжирование
 - `difficulty`: "low" | "medium" | "high" — сложность внесения правок
-- `fix`: краткий пример решения (код или конкретное действие)
+- `fix`: конкретный пример решения для данного сайта (код или текст)
 
 ```json
 {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.3.2",
+  "skillVersion": "1.4.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -465,7 +497,12 @@ console.log(JSON.stringify({
     { "check": "Скрытый контент (hidden text)", "status": "...", "value": "..." },
     { "check": "Session ID в URL", "status": "...", "value": "..." },
     { "check": "Качество анкоров внутренних ссылок", "status": "...", "value": "..." },
-    { "check": "Яндекс.Вебмастер (верификация)", "status": "...", "value": "..." }
+    { "check": "Яндекс.Вебмастер (верификация)", "status": "...", "value": "..." },
+    { "check": "og:locale", "status": "...", "value": "..." },
+    { "check": "Навигационное меню", "status": "...", "value": "N пунктов" },
+    { "check": "Подвал (footer)", "status": "...", "value": "N ссылок, телефон: да/нет, адрес: да/нет" },
+    { "check": "www — доступность", "status": "...", "value": "301 → non-www / не отвечает / нет DNS" },
+    { "check": "Мусорные URL в sitemap", "status": "...", "value": "..." }
   ]
 }
 ```
