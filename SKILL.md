@@ -114,9 +114,12 @@ REPORT_MD="${OUTPUT_DIR}/${REPORT_BASE}.md"
 - Количество URL (менее 8 — очень мало для коммерческого сайта)
 - Нет ли в sitemap редиректов (3xx) или несуществующих страниц (4xx) — проверь HEAD-запросом для 3–5 URL из sitemap:
   ```bash
-  # Проверка статусов первых 5 URL из sitemap
-  curl -sI "URL1" | grep "^HTTP" && curl -sI "URL2" | grep "^HTTP"
+  # Проверка статусов + цепочек редиректов (num_redirects > 1 = цепочка, теряется link juice)
+  for URL in "URL1" "URL2" "URL3"; do
+    curl -sLI -o /dev/null -w "$URL → HTTP %{http_code}, редиректов: %{num_redirects}, итог: %{url_effective}\n" "$URL"
+  done
   ```
+  Если `num_redirects > 1` — это цепочка A→B→C, фиксируй как warning с конкретными URL.
 - Нет ли технических/мусорных URL: `*.php?id=`, `?PHPSESSID=`, `/wp-admin/`, `/feed/`, `/tag/`
 - Присутствует ли `<lastmod>` и `<priority>`
 - Извлеки до 5 внутренних URL для дальнейшей проверки страниц
@@ -186,7 +189,7 @@ curl -sI "$ARGUMENTS/this-page-does-not-exist-12345" | grep -Ei "HTTP" 2>/dev/nu
 
 ### 1.7 Технические HTTP-заголовки
 ```bash
-# Полные заголовки ответа
+# Полные заголовки ответа + определение CMS/сервера
 curl -sI "$ARGUMENTS" 2>/dev/null
 
 # Скорость ответа (TTFB)
@@ -194,6 +197,11 @@ curl -o /dev/null -s -w "DNS:%{time_namelookup}s Connect:%{time_connect}s TTFB:%
 
 # Сжатие gzip/brotli
 curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding" 2>/dev/null
+
+# Cache-Control по типам ресурсов (HTML, CSS, JS, изображения)
+CSS_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=href=")[^"]+\.css[^"]*' | head -1) && [ -n "$CSS_URL" ] && curl -sI "${CSS_URL#/}" 2>/dev/null | grep -i "cache-control" || true
+JS_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=src=")[^"]+\.js[^"]*' | head -1) && [ -n "$JS_URL" ] && curl -sI "${JS_URL#/}" 2>/dev/null | grep -i "cache-control" || true
+IMG_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=src=")[^"]+\.(jpg|png|webp|svg)[^"]*' | head -1) && [ -n "$IMG_URL" ] && curl -sI "${IMG_URL#/}" 2>/dev/null | grep -i "cache-control" || true
 ```
 
 Проверь следующие заголовки:
@@ -201,9 +209,10 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 - **Strict-Transport-Security (HSTS)**: `max-age=31536000; includeSubDomains`
 - **X-Frame-Options**: `SAMEORIGIN` (защита от кликджекинга)
 - **Content-Security-Policy**: желательно для безопасности
-- **Cache-Control**: для HTML — `max-age` минимум 3600, для статики — 31536000
+- **Cache-Control по типам**: HTML — `public, max-age=3600`; CSS/JS — `max-age=31536000, immutable`; изображения — `max-age=2592000`; если везде `no-store` или `no-cache` — критично
 - **Last-Modified / ETag**: должны присутствовать для корректного кэширования
 - **Content-Type**: должен содержать `charset=utf-8`
+- **X-Powered-By / Server**: определи CMS и сервер (Bitrix → `X-Powered-By: PHP`, WordPress → `/wp-content/`, Tilda, 1C-Битрикс, и т.д.) — укажи в поле `cmsInfo`
 
 ### 1.8 Проверка дополнительных страниц
 Для 2–3 URL из sitemap получи raw HTML через WebFetch. На каждой проверь:
@@ -260,16 +269,21 @@ JSON.stringify({
   robots: document.querySelector('meta[name="robots"]')?.content,
   lang: document.documentElement.lang,
   h1: [...document.querySelectorAll('h1')].map(h => h.textContent.trim()),
+  h2texts: [...document.querySelectorAll('h2')].map(h => h.textContent.trim().slice(0, 80)).slice(0, 15),
+  h3texts: [...document.querySelectorAll('h3')].map(h => h.textContent.trim().slice(0, 80)).slice(0, 10),
   h2count: document.querySelectorAll('h2').length,
   h3count: document.querySelectorAll('h3').length,
   imgsNoAlt: document.querySelectorAll('img:not([alt])').length,
   imgsEmptyAlt: document.querySelectorAll('img[alt=""]').length,
   totalImgs: document.querySelectorAll('img').length,
   brokenImgs: [...document.querySelectorAll('img')].filter(i => !i.complete || i.naturalWidth === 0).length,
+  brokenImgSrcs: [...document.querySelectorAll('img')].filter(i => !i.complete || i.naturalWidth === 0).map(i => i.src).slice(0, 10),
+  imgDetails: [...document.querySelectorAll('img')].slice(0, 10).map(i => ({ src: i.src.replace(location.origin,'').slice(0,60), alt: i.alt || null, hasDimensions: !!(i.width && i.height) })),
   internalLinks: new Set([...document.querySelectorAll('a[href]')].map(a => a.href).filter(h => h.startsWith(location.origin))).size,
   externalLinks: [...document.querySelectorAll('a[href]')].filter(a => a.href && !a.href.startsWith(location.origin) && a.href.startsWith('http')).length,
   externalNoFollow: [...document.querySelectorAll('a[href]')].filter(a => a.href && !a.href.startsWith(location.origin) && a.href.startsWith('http') && (a.rel||'').includes('nofollow')).length,
   nofollowLinks: document.querySelectorAll('a[rel*=nofollow]').length,
+  anchorFrequency: (() => { const freq = {}; [...document.querySelectorAll('a[href]')].filter(a => a.href.startsWith(location.origin)).forEach(a => { const t = a.textContent.trim().slice(0,40); if (t) freq[t] = (freq[t]||0)+1; }); return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([text,count])=>({text,count})); })(),
   schemaTypes: [...document.querySelectorAll('script[type="application/ld+json"]')].map(s => { try { const d = JSON.parse(s.textContent); return d['@type']; } catch(e) { return 'parse_error'; } }),
   hasBreadcrumbs: !!document.querySelector('[itemtype*="BreadcrumbList"], .breadcrumb, .breadcrumbs, nav[aria-label*="breadcrumb" i]'),
   hasNavMenu: !!document.querySelector('nav, [role=navigation]'),
@@ -292,6 +306,8 @@ JSON.stringify({
   footerHasAddress: !!document.querySelector('footer address, [role=contentinfo] address, footer [itemtype*="PostalAddress"]'),
   footerHasPhone: /\+7|8\s*\(|тел\.|phone/i.test(document.querySelector('footer, [role=contentinfo]')?.textContent || ''),
   navMenuItems: [...document.querySelectorAll('nav a[href], [role=navigation] a[href]')].filter(a => a.href.startsWith(location.origin)).map(a => ({ text: a.textContent.trim().slice(0, 40), path: a.pathname })).slice(0, 15),
+  ctaAboveFold: (() => { const fold = window.innerHeight; return [...document.querySelectorAll('button, a.btn, a[class*="cta"], a[class*="button"], input[type=submit], [role=button]')].filter(el => { const r = el.getBoundingClientRect(); return r.top < fold && r.width > 0; }).map(el => el.textContent.trim().slice(0,40)).slice(0,5); })(),
+  smallFontElements: [...document.querySelectorAll('p, span, div, li, td')].filter(el => { const fs = parseFloat(window.getComputedStyle(el).fontSize); return fs > 0 && fs < 12 && el.textContent.trim().length > 10; }).length,
   publishDate: document.querySelector('time[datetime], meta[property="article:published_time"], meta[name="date"]')?.getAttribute('datetime') || document.querySelector('time[datetime]')?.dateTime,
   updateDate: document.querySelector('meta[property="article:modified_time"], time[itemprop="dateModified"]')?.content || document.querySelector('time[itemprop="dateModified"]')?.dateTime,
   authorName: document.querySelector('[itemprop="author"] [itemprop="name"], .author, [rel=author]')?.textContent?.trim(),
@@ -303,17 +319,7 @@ JSON.stringify({
 
 4. Сравни title/H1/meta description с WebFetch — если изменились, сайт **JS-зависимый** (критично для индексации Яндексом)
 
-5. Проверь внутренние ссылки на качество анкоров:
-```javascript
-// Примеры внутренних ссылок с их текстами
-[...document.querySelectorAll('a[href]')]
-  .filter(a => a.href.startsWith(location.origin) && a.textContent.trim())
-  .slice(0, 20)
-  .map(a => ({ text: a.textContent.trim().slice(0, 50), href: a.pathname }))
-```
-Оцени анкоры: «подробнее», «здесь», «нажмите» — плохие анкоры; конкретные ключевые слова — хорошие.
-
-6. Проверь скрытый контент (потенциально чёрная SEO-техника):
+5. Проверь скрытый контент и нулевые ссылки:
 ```javascript
 JSON.stringify({
   hiddenTextElements: [...document.querySelectorAll('*')].filter(el => {
@@ -325,9 +331,14 @@ JSON.stringify({
   }).map(el => ({ tag: el.tagName, text: el.textContent.trim().slice(0, 80) })).slice(0, 5),
   zeroSizeLinks: [...document.querySelectorAll('a[href]')].filter(a => {
     const r = a.getBoundingClientRect(); return r.width < 2 && r.height < 2;
-  }).length
+  }).length,
+  zeroSizeLinkHrefs: [...document.querySelectorAll('a[href]')].filter(a => {
+    const r = a.getBoundingClientRect(); return r.width < 2 && r.height < 2;
+  }).map(a => a.href.replace(location.origin,'')).slice(0, 10)
 })
 ```
+
+Анализируй `anchorFrequency` из шага 2 — если текст «подробнее», «здесь», «нажмите» встречается часто, это плохие анкоры. Конкретные ключевые слова — хорошие.
 
 ### 2.2 Мобильный вид
 
@@ -362,6 +373,15 @@ node -e "
 const d = JSON.parse(require('fs').readFileSync('${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json','utf8'));
 const cats = d.categories;
 const aud = d.audits;
+// Блокирующие скрипты из main-thread-work-breakdown
+const mainThread = aud['main-thread-work-breakdown']?.details?.items || [];
+const blockingScripts = (aud['render-blocking-resources']?.details?.items || [])
+  .map(i => ({ url: (i.url||'').replace(/^https?:\/\/[^/]+/,'').slice(0,60), duration: i.wastedMs ? Math.round(i.wastedMs)+'ms' : null }))
+  .slice(0,5);
+// Возможности оптимизации изображений
+const imgOpts = (aud['uses-optimized-images']?.details?.items || [])
+  .map(i => ({ url: (i.url||'').replace(/^https?:\/\/[^/]+/,'').slice(0,60), savings: i.wastedBytes ? Math.round(i.wastedBytes/1024)+'KB' : null }))
+  .slice(0,5);
 console.log(JSON.stringify({
   performance: Math.round((cats.performance?.score||0)*100),
   seo: Math.round((cats.seo?.score||0)*100),
@@ -374,7 +394,13 @@ console.log(JSON.stringify({
     CLS: aud['cumulative-layout-shift']?.displayValue,
     SI:  aud['speed-index']?.displayValue,
     TTI: aud['interactive']?.displayValue
-  }
+  },
+  blockingScripts,
+  imgOptimizations: imgOpts,
+  bfcacheFailures: (aud['bf-cache']?.details?.items||[]).map(i=>i.reason).slice(0,3),
+  accessibilityIssues: (aud['color-contrast']?.score===0 ? ['color-contrast: 0'] : [])
+    .concat(aud['image-alt']?.score===0 ? ['image-alt: 0'] : [])
+    .concat(aud['link-name']?.score===0 ? ['link-name: 0'] : [])
 }));
 " 2>/dev/null
 ```
@@ -400,19 +426,34 @@ if (shot) {
 Для 2–3 URL из sitemap — перейди через `mcp__claude-in-chrome__navigate` и повтори консольный скрипт из 2.1 через `mcp__claude-in-chrome__javascript_tool` (без скриншотов).
 
 ### 2.5 Проверка Schema.org (детальная)
-На главной проверь полноту Schema.org разметки через `mcp__claude-in-chrome__javascript_tool`:
+На главной проверь и валидируй Schema.org через `mcp__claude-in-chrome__javascript_tool`:
 ```javascript
-[...document.querySelectorAll('script[type="application/ld+json"]')]
-  .map(s => { try { return JSON.parse(s.textContent); } catch(e) { return null; } })
-  .filter(Boolean)
+JSON.stringify((() => {
+  const schemas = [...document.querySelectorAll('script[type="application/ld+json"]')]
+    .map(s => { try { return JSON.parse(s.textContent); } catch(e) { return null; } })
+    .filter(Boolean);
+  const required = {
+    Organization: ['name','url','telephone','address'],
+    WebSite: ['name','url','potentialAction'],
+    BreadcrumbList: ['itemListElement'],
+    FAQPage: ['mainEntity'],
+    LocalBusiness: ['name','address','telephone'],
+    Article: ['headline','datePublished','author'],
+    BlogPosting: ['headline','datePublished','author'],
+    Product: ['name','offers'],
+    Service: ['name','provider']
+  };
+  return schemas.map(s => {
+    const type = s['@type'];
+    const missing = (required[type] || []).filter(f => !s[f]);
+    return { type, missing, hasAll: missing.length === 0, fields: Object.keys(s) };
+  });
+})())
 ```
-Для каждого типа найденной разметки проверь обязательные поля:
-- `Organization` — обязательны `name`, `url`, `telephone`, `address` (с `@type: PostalAddress`)
-- `WebSite` — обязателен `potentialAction` (SearchAction) для Sitelinks Searchbox
-- `BreadcrumbList` — на каждой внутренней странице, `item` с `@id` и `name`
-- `FAQPage` — если есть FAQ-блок, должен быть `mainEntity` с вопросами
-- `Article` / `BlogPosting` — `datePublished`, `dateModified`, `author` обязательны
-- `MedicalWebPage` / `Drug` — для фарм/медицинских сайтов
+Используй результат для формирования конкретных рекомендаций:
+- Для каждого типа с `missing` — дай готовый JSON-LD с заполненными недостающими полями
+- Если `Organization` найдена, но нет `telephone` или `address.streetAddress` — критично
+- Если `WebSite` есть, но нет `potentialAction` — упущен Sitelinks Searchbox
 
 Укажи ссылки на валидацию в рекомендациях:
 - Google Rich Results Test: `https://search.google.com/test/rich-results`
@@ -433,6 +474,12 @@ if (shot) {
 - `fix` должен содержать **конкретный пример** для данного сайта, не общую фразу. Например: `"Сократить с 203 до 130 символов: «API ЕГРЮЛ и ЕГРИП — бесплатный сервис для проверки компаний по ИНН, ОГРН»"`
 - Для Schema.org всегда давай **готовый JSON-LD код** (не ссылку на документацию)
 - Для nginx/Apache всегда указывай **блок контекста** (`server {}`, `location /`)
+- Для битых изображений — указывай конкретный `src` из `brokenImgSrcs`, не общую инструкцию
+- Для нулевых ссылок — указывай конкретные href из `zeroSizeLinkHrefs`, не "проверить в DevTools"
+
+**Обязательное правило полноты**: каждый `status: "critical"` или `status: "warning"` в массиве `technical` **обязан** иметь соответствующую запись в `recommendations`. Перед финализацией JSON пройдись по всем элементам `technical` и убедись что для каждого critical/warning есть рекомендация.
+
+**Дедупликация**: одна проблема должна упоминаться в ONE месте. Если проблема попала в `scoreDetails`, не дублируй её полностью в `pages[].issues` — только конкретный URL и краткий факт. В `recommendations` — один раз с полным описанием и `fix`.
 
 **Важно**: каждая рекомендация должна содержать:
 - `priority`: "high" | "medium" | "low" — влияние на ранжирование
@@ -444,7 +491,7 @@ if (shot) {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.4.3",
+  "skillVersion": "1.5.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -493,6 +540,7 @@ if (shot) {
     "Внутренняя перелинковка": ["✅ навигационное меню есть", "⚠️ нет хлебных крошек", "✅ 47 внутренних ссылок"],
     "Аналитика": ["✅ Яндекс.Метрика установлена", "⚠️ GSC верификация не найдена"]
   },
+  "cmsInfo": "WordPress / Bitrix / Tilda / Custom / unknown",
   "lighthouse": {
     "available": true,
     "performance": 72,
@@ -506,7 +554,10 @@ if (shot) {
       "CLS": "0.05",
       "SI": "2.1 s",
       "TTI": "3.8 s"
-    }
+    },
+    "blockingScripts": [{ "url": "/js/main.js", "duration": "340ms" }],
+    "imgOptimizations": [{ "url": "/img/hero.jpg", "savings": "120KB" }],
+    "bfcacheFailures": ["unload-listener", "cache-control-no-store"]
   },
   "screenshotPaths": {
     "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png",  // PNG из Chrome Extension (шаг 2.1)

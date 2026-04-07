@@ -1,5 +1,16 @@
 # Changelog — SEO Audit Skill
 
+## [1.5.0] — 2026-04-08
+
+### Added
+- **JS-скрипт шаг 2.1 расширен** — новые поля: `h2texts`/`h3texts` (текст заголовков, не только счётчик), `anchorFrequency` (топ-15 анкоров с частотой), `imgDetails` (src+alt первых 10 изображений), `brokenImgSrcs` (конкретные src битых картинок), `ctaAboveFold` (CTA выше fold), `smallFontElements` (шрифты < 12px), `zeroSizeLinkHrefs` (href нулевых ссылок)
+- **Шаг 1.2 — цепочки редиректов** — `curl -w "%{num_redirects}"` для URL из sitemap, фиксирует A→B→C цепочки как warning
+- **Шаг 1.7 — Cache-Control по типам** — отдельные проверки для CSS/JS/изображений, определение CMS через `X-Powered-By` и паттерны URL
+- **Шаг 2.3 Lighthouse — блокирующие скрипты** — извлечение `render-blocking-resources`, `uses-optimized-images`, `bf-cache` failures из Lighthouse JSON
+- **Шаг 2.5 Schema.org — валидация обязательных полей** — JavaScript-валидатор для Organization, WebSite, BreadcrumbList, FAQPage, Article с проверкой missing полей
+- **Фаза 3 — правила полноты и дедупликации** — каждый critical/warning в `technical` обязан иметь рекомендацию; одна проблема — в одном месте
+- **JSON-схема** — новые поля: `cmsInfo`, `lighthouse.blockingScripts`, `lighthouse.imgOptimizations`, `lighthouse.bfcacheFailures`
+
 ## [1.4.6] — 2026-04-08
 
 ### Fixed
