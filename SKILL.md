@@ -58,21 +58,32 @@ agent: general-purpose
 
 ## Инициализация
 
-Создай рабочую директорию и вычисли имя файла отчёта:
+Определи корень проекта и создай рабочую директорию:
 ```bash
-mkdir -p seo-audit-output
+# Корень проекта — CWD при запуске скилла (не папка самого скилла)
+PROJECT_DIR=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+OUTPUT_DIR="${PROJECT_DIR}/seo-audit-output"
+mkdir -p "$OUTPUT_DIR"
+
 SITE_URL="$ARGUMENTS"
 DOMAIN=$(echo "$SITE_URL" | sed 's|https\?://||' | sed 's|/.*||')
 DATETIME=$(date +"%Y-%m-%d-%H%M")
 REPORT_BASE="seo-report-${DOMAIN}-${DATETIME}"
+
+# Полные пути к файлам — используй их везде далее
+REPORT_JSON="${OUTPUT_DIR}/report-data-${DOMAIN}-${DATETIME}.json"
+REPORT_MD="${OUTPUT_DIR}/${REPORT_BASE}.md"
 ```
 
-Все выходные файлы этого запуска должны иметь префикс `${REPORT_BASE}`:
-- `seo-audit-output/${REPORT_BASE}.md`
-- `seo-audit-output/${REPORT_BASE}.html`
-- `seo-audit-output/${REPORT_BASE}.pdf`
-- `seo-audit-output/desktop-${DOMAIN}-${DATETIME}.png`
-- `seo-audit-output/mobile-${DOMAIN}-${DATETIME}.png`
+Все выходные файлы этого запуска:
+- `${OUTPUT_DIR}/${REPORT_BASE}.md`
+- `${OUTPUT_DIR}/${REPORT_BASE}.html`  (генерируется через generate-report.js)
+- `${OUTPUT_DIR}/${REPORT_BASE}.pdf`   (генерируется через generate-report.js)
+- `${OUTPUT_DIR}/report-data-${DOMAIN}-${DATETIME}.json`
+- `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png`
+- `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png`
+
+**Важно**: никогда не используй относительные пути `seo-audit-output/...` — только абсолютные через `${OUTPUT_DIR}/...`.
 
 ---
 
@@ -293,7 +304,7 @@ console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
 
 ## Фаза 3 — Формирование данных отчёта
 
-Собери все данные в JSON-файл `seo-audit-output/report-data.json`.
+Собери все данные в JSON-файл `${REPORT_JSON}` (полный путь из инициализации).
 
 **Важно**: каждая рекомендация должна содержать:
 - `priority`: "high" | "medium" | "low" — влияние на ранжирование
@@ -442,9 +453,8 @@ console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
 
 ### HTML + PDF отчёт
 ```bash
-node "$(dirname "$0")/generate-report.js" \
-  seo-audit-output/report-data.json \
-  seo-audit-output
+# generate-report.js находится рядом со SKILL.md в .claude/skills/seo-audit/
+node "${PROJECT_DIR}/.claude/skills/seo-audit/generate-report.js" "${REPORT_JSON}" "${OUTPUT_DIR}"
 ```
 
 ---

@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SEO Аудит — https://traumeel.ru</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
+  .page { max-width: 980px; margin: 0 auto; padding: 40px 24px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+  h1 { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+  .header-bar { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #fff; border-radius: 12px; padding: 32px; margin-bottom: 24px; }
+  .score-big { font-size: 64px; font-weight: 900; line-height: 1; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; text-align: center; }
+  .stat-value { font-size: 28px; font-weight: 800; }
+  .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 12px; background: #f8fafc; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  .mode-badge { display:inline-block; padding:4px 12px; border-radius:6px; font-size:13px; font-weight:600; background:rgba(255,255,255,.2); margin-top:8px; }
+  @media print {
+    body { background: #fff; }
+    .page { padding: 20px; }
+    .card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header-bar">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;opacity:.8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.1em">SEO Аудит</div>
+        <h1 style="color:#fff">https://traumeel.ru</h1>
+        <div style="opacity:.8;margin-top:6px;font-size:14px">2026-04-07 13:43</div>
+        <div class="mode-badge">✅ Полный режим (Chrome)</div>
+      </div>
+      <div style="text-align:center;min-width:100px">
+        <div style="font-size:12px;opacity:.8;margin-bottom:4px">Общая оценка</div>
+        <div class="score-big" style="color:#f59e0b">5.5</div>
+        <div style="opacity:.7;font-size:13px">из 10</div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:14px;background:rgba(255,255,255,.15);border-radius:8px;font-size:14px;line-height:1.6">Сайт traumeel.ru имеет хорошую базовую техническую конфигурацию (HTTPS, редиректы, корректный robots.txt), однако страдает от ряда критических SEO-проблем: отсутствие H1 на главной странице, слишком длинные meta description (до 276 символов), очень малый объём sitemap (8 страниц), отсутствие gzip/brotli сжатия и важных HTTP-заголовков безопасности. Контент на внутренних страницах имеет множество H1, что нарушает семантическую структуру.</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat-value" style="color:#1e293b">3</div>
+      <div class="stat-label">Страниц проверено</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color:#ef4444">8</div>
+      <div class="stat-label">🔴 Критических</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color:#f59e0b">9</div>
+      <div class="stat-label">🟡 Предупреждений</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color:#22c55e">11</div>
+      <div class="stat-label">🟢 Хорошо</div>
+    </div>
+  </div>
+
+  <!-- Scores -->
+  
+  <div class="card">
+    <h2>Оценки по категориям</h2>
+    <table>
+      <thead><tr><th>Категория</th><th style="text-align:center">Оценка</th><th>Прогресс</th></tr></thead>
+      <tbody>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Мета-теги</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#f59e0b">5</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#f59e0b;width:50%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Структура контента</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#ef4444">4</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#ef4444;width:40%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Технические факторы</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#f59e0b">5</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#f59e0b;width:50%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Мобильность</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#22c55e">8</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#22c55e;width:80%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Скорость загрузки</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#f59e0b">5</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#f59e0b;width:50%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Open Graph / Соцсети</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#f59e0b">7</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#f59e0b;width:70%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Структурированные данные</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#f59e0b">6</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#f59e0b;width:60%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">E-E-A-T и контент</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#f59e0b">5</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#f59e0b;width:50%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Внутренняя перелинковка</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#ef4444">4</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#ef4444;width:40%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">Аналитика</td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <span style="font-size:18px;font-weight:700;color:#f59e0b">6</span><span style="color:#94a3b8">/10</span>
+      </td>
+      <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">
+        <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;max-width:180px">
+          <div style="background:#f59e0b;width:60%;height:8px;border-radius:99px"></div>
+        </div>
+      </td>
+    </tr></tbody>
+    </table>
+  </div>
+
+  <!-- Recommendations grouped by priority -->
+  
+  <div class="card">
+    <h2>Рекомендации</h2>
+    <div style="font-size:13px;color:#64748b;margin-bottom:20px">
+      Для каждой рекомендации указаны: приоритет (влияние на ранжирование) и сложность внедрения.
+    </div>
+    
+    <div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:12px">🔴 Высокий приоритет — внедрить в первую очередь</div>
+      
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">1</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить H1 на главную страницу</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">На главной странице полностью отсутствует тег H1. Это критичная ошибка: поисковики используют H1 как главный заголовок страницы для понимания темы. Все заголовки первого уровня находятся в слайдере и отображаются как H2.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Добавить один H1 в верхнюю часть страницы: <h1>Траумель® С — противовоспалительный препарат</h1></div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">2</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Исправить длину meta description на главной и внутренних страницах</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">Meta description главной страницы — 276 символов (норма 70–160). На странице /moms/ — 220 символов. Слишком длинные описания обрезаются в выдаче и снижают CTR.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Сократить до 120–155 символов: 'Траумель® С — гомеопатический препарат для лечения воспалений, травм и ушибов. Гель, мазь, таблетки и капли. Подходит для детей с 3 лет и взрослых.'</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">3</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Включить gzip/brotli сжатие</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">Сервер не отдаёт заголовок Content-Encoding, что означает отсутствие сжатия HTML/CSS/JS. Это увеличивает размер передаваемых данных в 3–7 раз и замедляет загрузку страницы.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">В nginx.conf добавить: gzip on; gzip_types text/html text/css application/javascript; brotli on; (если модуль ngx_brotli установлен)</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">4</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить заголовки безопасности (HSTS, X-Frame-Options, CSP)</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">Отсутствуют критичные заголовки: Strict-Transport-Security, X-Frame-Options, Content-Security-Policy. Это влияет на оценку 'Best Practices' в Lighthouse и доверие поисковиков.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">В nginx.conf добавить:
+add_header Strict-Transport-Security 'max-age=31536000; includeSubDomains';
+add_header X-Frame-Options SAMEORIGIN;
+add_header X-Content-Type-Options nosniff;</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">5</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Исправить структуру H1 на внутренних страницах</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧🔧 Средне</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">На странице /sport/ найдено 5 тегов H1, на /moms/ — 9 H1. Множественные H1 нарушают семантику страницы и размывают ключевое слово для поисковиков.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Оставить один H1 с главным ключевым словом страницы. Остальные заголовки оформить как H2 или H3.</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">6</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Улучшить настройку кэширования (Cache-Control)</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">Текущее значение Cache-Control: max-age=3, must-revalidate — это фактически отсутствие кэширования (3 секунды). Статика (CSS, JS, изображения) должна кэшироваться минимум на 1 год.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Для статики: Cache-Control: public, max-age=31536000, immutable
+Для HTML: Cache-Control: public, max-age=3600, must-revalidate</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">7</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Заполнить alt-атрибуты изображений</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧🔧 Средне</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">19 изображений на главной странице имеют пустой alt="". Alt-тексты важны для SEO изображений и доступности. Google и Яндекс используют alt для понимания контекста изображений.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Добавить описательные alt: <img src='traumeel-gel.png' alt='Гель Траумель® С 50г — для лечения воспалений'></div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">8</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Расширить sitemap.xml</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #b91c1c33">↑ Высокий</span>
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧🔧 Средне</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">В sitemap всего 8 страниц — это критически мало. Отсутствуют страницы карточек препаратов, информационные статьи, страница 'accept-cookies' не должна быть в sitemap.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Добавить все значимые страницы в sitemap. Удалить служебные страницы (/accept-cookies/). Настроить автоматическую генерацию через Yoast SEO.</div>
+    </div>
+    </div>
+    
+    <div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:12px">🟡 Средний приоритет</div>
+      
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">9</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить TTFB оптимизацию</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #92400e33">→ Средний</span>
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧🔧 Средне</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">TTFB = 0.6 секунды — выше рекомендуемого значения (< 0.3с для Яндекса). Это может быть связано с медленной обработкой PHP или отсутствием page cache.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Установить плагин кэширования (WP Rocket, W3 Total Cache). Оптимизировать запросы к БД. Рассмотреть CDN.</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">10</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Обогатить Schema.org Organization данными</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #92400e33">→ Средний</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">В разметке Organization отсутствуют: telephone, address (PostalAddress), sameAs. Для фармацевтического/медицинского сайта это важно для E-E-A-T и локального SEO.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Добавить в JSON-LD:
+"telephone": "+7-XXX-XXX-XX-XX",
+"address": {"@type": "PostalAddress", "addressCountry": "RU", "addressLocality": "Москва"}</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">11</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить Schema.org MedicalWebPage или Drug для страниц препаратов</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #92400e33">→ Средний</span>
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧🔧 Средне</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">Медицинский сайт не использует специализированные типы разметки MedicalWebPage, Drug, DietarySupplement. Это снижает доверие поисковиков в YMYL-тематике.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Добавить на страницу препарата: {"@type": "Drug", "name": "Траумель С", "activeIngredient": "...", "prescriptionStatus": "OTC"}</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">12</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Исправить ссылку 'Где купить?' — ведёт на главную</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #92400e33">→ Средний</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">Навигационная ссылка 'Где купить?' и несколько CTA-кнопок указывают на '/' вместо отдельной страницы или якоря. Это ухудшает пользовательский опыт и внутреннюю перелинковку.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Создать отдельную страницу /gde-kupit/ или использовать якорь #gde-kupit на главной.</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">13</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить Twitter Card теги</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #92400e33">→ Средний</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">На сайте отсутствует разметка Twitter Card (twitter:card, twitter:title, twitter:image). При шаринге ссылки в Twitter/X карточка не будет отображаться корректно.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto"><meta name='twitter:card' content='summary_large_image'>
+<meta name='twitter:title' content='Траумель® С – при воспалении и травмах'>
+<meta name='twitter:image' content='https://traumeel.ru/og-image.jpg'></div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">14</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить верификацию Яндекс.Вебмастера и Google Search Console</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #92400e33">→ Средний</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">На сайте не найдены мета-теги верификации yandex-verification и google-site-verification. Без подтверждения сайта в вебмастерах невозможно полноценно отслеживать индексацию.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto"><meta name='yandex-verification' content='XXXXXXXX'>
+<meta name='google-site-verification' content='XXXXXXXX'></div>
+    </div>
+    </div>
+    
+    <div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:12px">🟢 Низкий приоритет</div>
+      
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">15</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Убрать /accept-cookies/ из sitemap</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #16653433">↓ Низкий</span>
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧 Просто</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">Служебная страница /accept-cookies/ включена в sitemap.xml. Такие страницы не несут SEO-ценности и засоряют индекс.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Добавить в Yoast SEO: исключить страницу из sitemap. Или добавить <meta name='robots' content='noindex'> на эту страницу.</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">16</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить страницу 'О компании' или 'О препарате'</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #16653433">↓ Низкий</span>
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧🔧 Средне</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">На сайте нет явной страницы о компании-производителе. Ссылки ведут на внешний сайт heel-russia.ru. Для E-E-A-T сигналов важно иметь информацию об авторитетности на самом сайте.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Создать страницу /o-preparate/ с информацией о Heel, клинических исследованиях, составе препарата.</div>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">17</div>
+        <div style="font-weight:700;font-size:15px;flex:1">Добавить страницу FAQ с разметкой FAQPage</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid #16653433">↓ Низкий</span>
+          <span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">🔧🔧 Средне</span>
+        </div>
+      </div>
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:10px">На сайте нет отдельной страницы FAQ. FAQ с разметкой Schema.org FAQPage позволяет получить расширенные сниппеты в поиске и занять больше места на странице выдачи.</div>
+      <div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">Создать /faq/ с вопросами типа: 'Как применять Траумель?', 'Можно ли детям?', 'Чем отличается гель от мази?'. Добавить разметку FAQPage.</div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Issues by page -->
+  
+  <div class="card">
+    <h2>Проблемы по страницам</h2>
+    <table>
+      <thead><tr><th>Страница</th><th>Тип</th><th>Описание</th></tr></thead>
+      <tbody>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Отсутствует H1 — нет ни одного тега H1 на странице</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Meta description слишком длинный: 276 символов (норма 70–160)</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">19 изображений с пустым alt=""</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Нет хлебных крошек в HTML (только в Schema.org JSON-LD)</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Нет верификации Яндекс.Вебмастер</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Нет верификации Google Search Console</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Twitter Card не настроен</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Ссылки 'Где купить?' ведут на главную страницу (/)</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Title корректный: 38 символов, содержит ключевые слова</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Canonical совпадает с URL</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">lang='ru-RU' установлен</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Viewport настроен корректно</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Open Graph теги присутствуют (title, description, image)</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Schema.org: WebPage, WebSite, Organization, BreadcrumbList</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Яндекс.Метрика подключена</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/" style="color:#3b82f6;text-decoration:none">/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">robots: index, follow — страница открыта для индексации</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/sport/" style="color:#3b82f6;text-decoration:none">/sport/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">5 тегов H1 на странице (должен быть ровно 1)</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/sport/" style="color:#3b82f6;text-decoration:none">/sport/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Meta description на границе нормы: ~160 символов</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/sport/" style="color:#3b82f6;text-decoration:none">/sport/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Title уникальный и содержит ключевое слово</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/sport/" style="color:#3b82f6;text-decoration:none">/sport/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Canonical корректный: https://traumeel.ru/sport/</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/sport/" style="color:#3b82f6;text-decoration:none">/sport/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Хлебные крошки присутствуют: Главная > Спортсменам</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/moms/" style="color:#3b82f6;text-decoration:none">/moms/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">9 тегов H1 на странице (должен быть ровно 1)</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/moms/" style="color:#3b82f6;text-decoration:none">/moms/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Meta description слишком длинный: ~220 символов</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/moms/" style="color:#3b82f6;text-decoration:none">/moms/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Title уникальный и содержит ключевое слово</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
+          <a href="https://traumeel.ru/moms/" style="color:#3b82f6;text-decoration:none">/moms/</a>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">Хлебные крошки присутствуют: Главная > Родителям</td>
+      </tr></tbody>
+    </table>
+  </div>
+
+  <!-- Technical checks -->
+  
+  <div class="card">
+    <h2>Технические проверки</h2>
+    <table>
+      <thead><tr><th>Проверка</th><th>Статус</th><th>Значение</th></tr></thead>
+      <tbody>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">HTTPS</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Сайт работает по HTTPS</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">www → non-www редирект</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">301 Moved Permanently → https://traumeel.ru/</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">http → https редирект</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">301 Moved Permanently → https://traumeel.ru/</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">robots.txt</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Присутствует. Указан Sitemap. Закрыты: /?  /wp- /search/ /author/ /users/ и служебные пути. Нет блокировки CSS/JS.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">sitemap.xml</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Только 8 URL (очень мало для коммерческого сайта). Индексный sitemap → page-sitemap.xml. Нет <priority>. lastmod присутствует.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Страница 404</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">HTTP 404 Not Found — сервер корректно возвращает 404</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">TTFB</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">0.60с (рекомендуется < 0.3с). DNS: 0.006с, Connect: 0.12с, Total: 0.996с</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Gzip/Brotli</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Content-Encoding не передаётся — сжатие отключено</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">HSTS</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Заголовок Strict-Transport-Security отсутствует</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">X-Frame-Options</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Заголовок X-Frame-Options отсутствует</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Cache-Control</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">max-age=3, must-revalidate — кэширование фактически отключено</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Last-Modified / ETag</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Не обнаружены в ответе сервера</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Canonical</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Главная: https://traumeel.ru/ — корректен. /sport/: корректен.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">H1 структура</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Главная: 0 H1 (критично). /sport/: 5 H1. /moms/: 9 H1</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Meta description длина</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔴 Критично</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Главная: 276 символов (норма 70–160). /moms/: ~220 символов. /sport/: ~160 символов (на границе)</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Open Graph</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">og:title, og:description, og:image, og:type, og:url, og:locale — присутствуют</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Twitter Card</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">twitter:card, twitter:title, twitter:image — отсутствуют</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Schema.org</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">WebPage, WebSite, BreadcrumbList, Organization — есть. Нет telephone/address в Organization. Нет MedicalWebPage/Drug. Нет FAQPage.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Mobile viewport</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">width=device-width, initial-scale=1.0 — корректно. Мобильная версия адаптивна, меню сворачивается в бургер.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">JS-зависимость контента</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">H2 заголовки и основной контент присутствуют в raw HTML — сайт не полностью JS-зависим. H1 отсутствует и в raw HTML и после JS-рендеринга.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">lang атрибут</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">lang='ru-RU' — установлен корректно</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Яндекс.Метрика</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Подключена (ym() вызовы присутствуют в коде)</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Google Analytics / GTM</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Google Tag Manager не обнаружен. Google Analytics не обнаружен.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Яндекс.Вебмастер (верификация)</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Мета-тег yandex-verification не найден</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Хлебные крошки</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">На главной — только в Schema.org JSON-LD, нет в HTML. На /sport/ и /moms/ — присутствуют в HTML.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">E-E-A-T: О компании</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Нет страницы 'О компании' на домене. Ссылки ведут на внешний heel-russia.ru</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">E-E-A-T: FAQ</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟡 Предупреждение</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">Нет страницы FAQ и разметки FAQPage</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">URL структура</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🟢 Хорошо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">URL на латинице, через дефис, со слэшем на конце: /sport/, /moms/, /cosmo/ — корректно. Без кириллицы.</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">Сервер</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9"><span style="background:#eff6ff;color:#3b82f6;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">🔵 Инфо</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">nginx/1.28.2, PHP/8.3.30, WordPress (Yoast SEO)</td>
+    </tr></tbody>
+    </table>
+  </div>
+
+  <div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:32px">
+    Сгенерировано Claude Code SEO Audit · https://traumeel.ru · 2026-04-07 13:43
+  </div>
+
+</div>
+</body>
+</html>

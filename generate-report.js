@@ -270,8 +270,11 @@ const data = JSON.parse(readFileSync(inputFile, 'utf8'));
 mkdirSync(outputDir, { recursive: true });
 
 const domain = (data.url || 'unknown').replace(/^https?:\/\//, '').replace(/\/.*/, '').replace(/[^a-z0-9.-]/gi, '_');
-const now = new Date();
-const datetime = now.toISOString().slice(0, 16).replace('T', '-').replace(':', '');
+// Use date from report data ("YYYY-MM-DD HH:MM") so filename matches MD/screenshots from the same run
+// Result: "YYYY-MM-DD-HHMM", e.g. "2026-04-07-1343"
+const datetime = (data.date || new Date().toISOString().slice(0, 16))
+  .replace(' ', '-')   // "2026-04-07 13:43" → "2026-04-07-13:43"
+  .replace(':', '');   // → "2026-04-07-1343"
 const baseName = `seo-report-${domain}-${datetime}`;
 const htmlPath  = resolve(outputDir, `${baseName}.html`);
 const pdfPath   = resolve(outputDir, `${baseName}.pdf`);
