@@ -231,13 +231,23 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
-1. **Десктоп-скриншот через Claude Chrome Extension** (не из Lighthouse — Lighthouse снимает мобильный viewport):
+1. **Десктоп-скриншот через Claude Chrome Extension** (не из Lighthouse — Lighthouse снимает только мобильный viewport 412px):
    - Вызови `mcp__claude-in-chrome__tabs_context_mcp` — убедись что tabId из шага 0 активен и показывает `$ARGUMENTS`
    - Вызови `mcp__claude-in-chrome__computer` с action: `screenshot` — получишь PNG в десктопном viewport
    - Из ответа извлеки base64-строку PNG (поле `data`)
    - Запиши через Write-инструмент в файл: `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64`
    - Декодируй: `base64 -d "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64"`
-   - Проверь: `ls -lh "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` — файл должен быть **> 50 KB**; если меньше или не создан — запиши `null` в `screenshotPaths.desktop`
+   - **Обязательная валидация** — выполни и убедись что вывод `OK`:
+   ```bash
+   node -e "
+   const buf = require('fs').readFileSync('${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png');
+   const isPNG = buf[0]===0x89 && buf[1]===0x50 && buf[2]===0x4e && buf[3]===0x47;
+   if (!isPNG) { console.error('FAIL: файл не является PNG (magic bytes:', buf.slice(0,4).toString('hex') + '). Агент подменил десктоп-скриншот JPEG из Lighthouse. Повтори шаг через mcp__claude-in-chrome__computer.'); process.exit(1); }
+   if (buf.length < 50000) { console.error('FAIL: файл слишком мал (' + buf.length + ' bytes < 50KB) — скриншот не получен. Повтори через mcp__claude-in-chrome__computer.'); process.exit(1); }
+   console.log('OK: PNG десктоп-скриншот', buf.length, 'bytes');
+   "
+   ```
+   Если валидация провалилась — запиши `null` в `screenshotPaths.desktop` и продолжи.
 
 2. Выполни через `mcp__claude-in-chrome__javascript_tool` (используй тот же tabId):
 ```javascript
