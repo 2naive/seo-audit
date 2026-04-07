@@ -2,7 +2,7 @@
 name: seo-audit
 description: Full SEO audit — meta tags, JS-rendered content, Core Web Vitals, E-E-A-T, internal links, schema, analytics checks. Generates Markdown + HTML + PDF report.
 argument-hint: "[URL сайта]"
-allowed-tools: Bash WebFetch Navigate Screenshot Read Write
+allowed-tools: Bash WebFetch Read Write mcp__claude-in-chrome__navigate mcp__claude-in-chrome__javascript_tool mcp__claude-in-chrome__computer mcp__claude-in-chrome__tabs_context_mcp mcp__claude-in-chrome__tabs_create_mcp mcp__claude-in-chrome__resize_window mcp__claude-in-chrome__get_page_text mcp__claude-in-chrome__read_console_messages
 context: fork
 agent: general-purpose
 ---
@@ -17,9 +17,9 @@ agent: general-purpose
 
 **Перед любыми другими действиями** проверь доступность Chrome-интеграции.
 
-Попробуй выполнить навигацию в браузере: используй инструмент Navigate с URL `$ARGUMENTS`.
+Попробуй выполнить навигацию в браузере: используй инструмент `mcp__claude-in-chrome__navigate` с URL `$ARGUMENTS`. Перед вызовом `navigate` сначала получи список вкладок через `mcp__claude-in-chrome__tabs_context_mcp`, затем создай новую вкладку через `mcp__claude-in-chrome__tabs_create_mcp` и используй её `tabId` для `navigate`.
 
-### Если Navigate недоступен или вернул ошибку подключения:
+### Если mcp__claude-in-chrome__navigate недоступен или вернул ошибку подключения:
 
 Сообщи пользователю:
 
@@ -48,7 +48,7 @@ agent: general-purpose
 - Если "да" — продолжи, пропуская **Фазу 2** (все Chrome-шаги), отметь в отчёте: `⚠️ Базовый режим — Chrome недоступен`
 - Иначе — останови выполнение
 
-### Если Navigate выполнился успешно:
+### Если mcp__claude-in-chrome__navigate выполнился успешно:
 
 Выведи: `✅ Chrome подключён — запускаю полный аудит`
 
@@ -210,11 +210,11 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 ## Фаза 2 — Браузерный анализ (Chrome)
 
 ### 2.1 Десктоп — главная страница
-Перейди на `$ARGUMENTS` в Chrome. Затем:
+Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
-1. Сделай скриншот → `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png`
+1. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) и сохрани в `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png` с помощью Write-инструмента (base64 → файл).
 
-2. Выполни в консоли браузера:
+2. Выполни через `mcp__claude-in-chrome__javascript_tool` (используй тот же tabId):
 ```javascript
 JSON.stringify({
   title: document.title,
@@ -253,7 +253,7 @@ JSON.stringify({
 }, null, 2)
 ```
 
-3. Проверь JS-ошибки в консоли (красные сообщения)
+3. Проверь JS-ошибки в консоли через `mcp__claude-in-chrome__read_console_messages`
 
 4. Сравни title/H1/meta description с WebFetch — если изменились, сайт **JS-зависимый** (критично для индексации Яндексом)
 
@@ -284,10 +284,10 @@ JSON.stringify({
 ```
 
 ### 2.2 Мобильный вид
-Эмулируй мобильное устройство (DevTools → Toggle Device Toolbar → iPhone 14, viewport 390×844). Затем:
-1. Перезагрузи страницу
-2. Сделай скриншот → `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png`
-3. Проверь: текст читаем (≥ 12px), кнопки ≥ 48px, нет горизонтального скролла, шрифты не слишком мелкие
+Измени размер окна через `mcp__claude-in-chrome__resize_window` на 390×844 (iPhone 14). Затем:
+1. Перейди на страницу повторно через `mcp__claude-in-chrome__navigate`
+2. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) и сохрани в `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png`
+3. Проверь через `mcp__claude-in-chrome__javascript_tool`: текст читаем (≥ 12px), кнопки ≥ 48px, нет горизонтального скролла
 
 ### 2.3 Lighthouse
 ```bash
@@ -327,10 +327,10 @@ console.log(JSON.stringify({
 Сохрани результат в поле `lighthouse` в `report-data.json`.
 
 ### 2.4 Проверка дополнительных страниц
-Для 2–3 URL из sitemap — повтори шаги 1.5 и консольный скрипт из 2.1 (без скриншотов).
+Для 2–3 URL из sitemap — перейди через `mcp__claude-in-chrome__navigate` и повтори консольный скрипт из 2.1 через `mcp__claude-in-chrome__javascript_tool` (без скриншотов).
 
 ### 2.5 Проверка Schema.org (детальная)
-На главной проверь полноту Schema.org разметки:
+На главной проверь полноту Schema.org разметки через `mcp__claude-in-chrome__javascript_tool`:
 ```javascript
 [...document.querySelectorAll('script[type="application/ld+json"]')]
   .map(s => { try { return JSON.parse(s.textContent); } catch(e) { return null; } })
