@@ -43,13 +43,36 @@ function severityBadge(s) {
   return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">${label}</span>`;
 }
 
+function priorityBadge(p) {
+  const map = {
+    high:   ['#fef2f2', '#b91c1c', '↑ Высокий'],
+    medium: ['#fffbeb', '#92400e', '→ Средний'],
+    low:    ['#f0fdf4', '#166534', '↓ Низкий'],
+  };
+  const [bg, color, label] = map[p] ?? map.medium;
+  return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid ${color}33">${label}</span>`;
+}
+
+function difficultyBadge(d) {
+  const map = {
+    low:    ['#f0fdf4', '#166534', '🔧 Просто'],
+    medium: ['#fffbeb', '#92400e', '🔧🔧 Средне'],
+    high:   ['#fef2f2', '#991b1b', '🔧🔧🔧 Сложно'],
+  };
+  const [bg, color, label] = map[d] ?? map.medium;
+  return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${label}</span>`;
+}
+
 // ── HTML template ─────────────────────────────────────────────────────────────
 function buildHTML(data) {
-  const { url, date, summary, scores, pages, recommendations, technical } = data;
+  const { url, date, mode, summary, scores, pages, recommendations, technical } = data;
 
-  const totalScore = scores ? (Object.values(scores).reduce((a, b) => a + b, 0) / Object.keys(scores).length).toFixed(1) : 'N/A';
+  const totalScore = scores
+    ? (Object.values(scores).filter(v => v !== null).reduce((a, b) => a + b, 0) /
+       Object.values(scores).filter(v => v !== null).length).toFixed(1)
+    : 'N/A';
 
-  const scoresRows = scores ? Object.entries(scores).map(([cat, val]) => `
+  const scoresRows = scores ? Object.entries(scores).filter(([,v]) => v !== null).map(([cat, val]) => `
     <tr>
       <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9">${cat}</td>
       <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;text-align:center">
@@ -65,7 +88,7 @@ function buildHTML(data) {
   const issuesList = (pages ?? []).flatMap(p =>
     (p.issues ?? []).map(i => `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:280px;word-break:break-all">
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;max-width:260px;word-break:break-all">
           <a href="${p.url}" style="color:#3b82f6;text-decoration:none">${p.url.replace(/^https?:\/\/[^/]+/, '') || '/'}</a>
         </td>
         <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${severityBadge(i.severity)}</td>
@@ -73,14 +96,36 @@ function buildHTML(data) {
       </tr>`)
   ).join('');
 
-  const recList = (recommendations ?? []).map((r, i) => `
-    <div style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #f1f5f9">
-      <div style="min-width:28px;height:28px;background:#3b82f6;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${i + 1}</div>
-      <div>
-        <div style="font-weight:600;margin-bottom:4px">${r.title}</div>
-        <div style="color:#64748b;font-size:14px">${r.description}</div>
+  // Group recommendations by priority
+  const recs = recommendations ?? [];
+  const highRecs  = recs.filter(r => r.priority === 'high');
+  const midRecs   = recs.filter(r => r.priority === 'medium');
+  const lowRecs   = recs.filter(r => r.priority === 'low' || !r.priority);
+
+  function recCard(r, idx) {
+    return `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${idx}</div>
+        <div style="font-weight:700;font-size:15px;flex:1">${r.title}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${r.priority ? priorityBadge(r.priority) : ''}
+          ${r.difficulty ? difficultyBadge(r.difficulty) : ''}
+        </div>
       </div>
-    </div>`).join('');
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:${r.fix ? '10px' : '0'}">${r.description}</div>
+      ${r.fix ? `<div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">${r.fix}</div>` : ''}
+    </div>`;
+  }
+
+  function recsSection(title, recsArr, startIdx) {
+    if (!recsArr.length) return '';
+    return `
+    <div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:12px">${title}</div>
+      ${recsArr.map((r, i) => recCard(r, startIdx + i)).join('')}
+    </div>`;
+  }
 
   const techRows = (technical ?? []).map(t => `
     <tr>
@@ -90,6 +135,7 @@ function buildHTML(data) {
     </tr>`).join('');
 
   const stats = summary ?? {};
+  const modeLabel = mode === 'full' ? '✅ Полный режим (Chrome)' : '⚠️ Базовый режим (без Chrome)';
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -100,11 +146,10 @@ function buildHTML(data) {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
-  .page { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+  .page { max-width: 980px; margin: 0 auto; padding: 40px 24px; }
   .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; margin-bottom: 24px; }
   h1 { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
   h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
-  .subtitle { color: #64748b; font-size: 14px; }
   .header-bar { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #fff; border-radius: 12px; padding: 32px; margin-bottom: 24px; }
   .score-big { font-size: 64px; font-weight: 900; line-height: 1; }
   .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
@@ -113,6 +158,7 @@ function buildHTML(data) {
   .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 10px 12px; background: #f8fafc; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  .mode-badge { display:inline-block; padding:4px 12px; border-radius:6px; font-size:13px; font-weight:600; background:rgba(255,255,255,.2); margin-top:8px; }
   @media print {
     body { background: #fff; }
     .page { padding: 20px; }
@@ -125,13 +171,14 @@ function buildHTML(data) {
 
   <!-- Header -->
   <div class="header-bar">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap">
       <div>
         <div style="font-size:12px;opacity:.8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.1em">SEO Аудит</div>
         <h1 style="color:#fff">${url}</h1>
         <div style="opacity:.8;margin-top:6px;font-size:14px">${date}</div>
+        <div class="mode-badge">${modeLabel}</div>
       </div>
-      <div style="text-align:center">
+      <div style="text-align:center;min-width:100px">
         <div style="font-size:12px;opacity:.8;margin-bottom:4px">Общая оценка</div>
         <div class="score-big" style="color:${scoreColor(parseFloat(totalScore))}">${totalScore}</div>
         <div style="opacity:.7;font-size:13px">из 10</div>
@@ -170,24 +217,29 @@ function buildHTML(data) {
     </table>
   </div>` : ''}
 
-  <!-- Recommendations -->
-  ${recList ? `
+  <!-- Recommendations grouped by priority -->
+  ${recs.length ? `
   <div class="card">
-    <h2>Приоритетные рекомендации</h2>
-    ${recList}
+    <h2>Рекомендации</h2>
+    <div style="font-size:13px;color:#64748b;margin-bottom:20px">
+      Для каждой рекомендации указаны: приоритет (влияние на ранжирование) и сложность внедрения.
+    </div>
+    ${recsSection('🔴 Высокий приоритет — внедрить в первую очередь', highRecs, 1)}
+    ${recsSection('🟡 Средний приоритет', midRecs, highRecs.length + 1)}
+    ${recsSection('🟢 Низкий приоритет', lowRecs, highRecs.length + midRecs.length + 1)}
   </div>` : ''}
 
-  <!-- Issues -->
+  <!-- Issues by page -->
   ${issuesList ? `
   <div class="card">
-    <h2>Найденные проблемы</h2>
+    <h2>Проблемы по страницам</h2>
     <table>
       <thead><tr><th>Страница</th><th>Тип</th><th>Описание</th></tr></thead>
       <tbody>${issuesList}</tbody>
     </table>
   </div>` : ''}
 
-  <!-- Technical -->
+  <!-- Technical checks -->
   ${techRows ? `
   <div class="card">
     <h2>Технические проверки</h2>
@@ -198,7 +250,7 @@ function buildHTML(data) {
   </div>` : ''}
 
   <div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:32px">
-    Сгенерировано Claude Code SEO Audit Skill · ${date}
+    Сгенерировано Claude Code SEO Audit · ${url} · ${date}
   </div>
 
 </div>

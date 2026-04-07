@@ -1,6 +1,6 @@
 ---
 name: seo-audit
-description: Full SEO audit — meta tags, JS-rendered content, Core Web Vitals, screenshots, broken links, robots/sitemap, Open Graph, Schema.org. Generates Markdown + HTML + PDF report.
+description: Full SEO audit — meta tags, JS-rendered content, Core Web Vitals, E-E-A-T, internal links, schema, analytics checks. Generates Markdown + HTML + PDF report.
 argument-hint: "[URL сайта]"
 allowed-tools: Bash WebFetch Navigate Screenshot Read Write
 context: fork
@@ -67,7 +67,7 @@ DATETIME=$(date +"%Y-%m-%d-%H%M")
 REPORT_BASE="seo-report-${DOMAIN}-${DATETIME}"
 ```
 
-Все выходные файлы этого запуска должны иметь префикс `${REPORT_BASE}`, например:
+Все выходные файлы этого запуска должны иметь префикс `${REPORT_BASE}`:
 - `seo-audit-output/${REPORT_BASE}.md`
 - `seo-audit-output/${REPORT_BASE}.html`
 - `seo-audit-output/${REPORT_BASE}.pdf`
@@ -76,46 +76,112 @@ REPORT_BASE="seo-report-${DOMAIN}-${DATETIME}"
 
 ---
 
-## Фаза 1 — Статичные технические проверки (WebFetch)
+## Фаза 1 — Статичные технические проверки (WebFetch + Bash)
 
 ### 1.1 robots.txt
 Получи `$ARGUMENTS/robots.txt` через WebFetch. Проверь:
 - Есть ли блокировка важных путей (`Disallow: /`)
-- Указана ли директива `Sitemap:`
-- Нет ли конфликтующих правил
+- Указана ли директива `Sitemap:` (с актуальным URL)
+- Закрыты ли от индексации: поиск по сайту, страницы сортировки/фильтрации, корзина, личные кабинеты, версии для печати, PDF-файлы
+- Нет ли инструкций, которые случайно закрывают CSS/JS файлы (например, `Disallow: */?`)
+- Директива `Host:` корректна (без www, https)
 
 ### 1.2 sitemap.xml
 Получи `$ARGUMENTS/sitemap.xml` через WebFetch. Проверь:
 - Формат валиден (XML)
-- Количество URL
-- Извлеки до 5 внутренних URL для дальнейшей проверки
+- Количество URL (менее 8 — очень мало для коммерческого сайта)
+- Нет ли в sitemap редиректов (3xx) или несуществующих страниц (4xx)
+- Присутствует ли `<lastmod>` и `<priority>`
+- Извлеки до 5 внутренних URL для дальнейшей проверки страниц
 
-### 1.3 Raw HTML главной страницы
-Получи `$ARGUMENTS` через WebFetch (raw HTML до JS-рендеринга). Проверь:
-- `<title>` — длина 30–60 символов
-- `<meta name="description">` — длина 70–160 символов
-- `<link rel="canonical">` — совпадает с текущим URL
-- `<meta name="robots">` — нет `noindex` на важных страницах
-- `<html lang="...">` — указан язык
-- `<meta name="viewport">` — обязателен для мобильных
-- Open Graph: `og:title`, `og:description`, `og:image`
-- Twitter Card: `twitter:card`, `twitter:title`
-- Schema.org: `<script type="application/ld+json">` — тип(ы) разметки
-- H1–H6 иерархия: один H1, логичная структура
-- Изображения без `alt` атрибута
-
-### 1.4 Технические HTTP-проверки
-Выполни через Bash:
+### 1.3 Проверка www и протокола (зеркала)
 ```bash
-# HTTPS + редиректы + заголовки безопасности
-curl -sI "$ARGUMENTS" | grep -Ei "HTTP|Location|Strict-Transport|X-Frame|Content-Security|Cache-Control" 2>/dev/null
+# Проверка www → non-www редиректа
+curl -sI "https://www.${DOMAIN}" | grep -Ei "HTTP|Location" 2>/dev/null
 
-# Скорость ответа сервера (TTFB)
+# Проверка http → https редиректа
+curl -sI "http://${DOMAIN}" | grep -Ei "HTTP|Location" 2>/dev/null
+```
+Ожидаемый результат: оба варианта дают 301 на основной хост (`https://${DOMAIN}`).
+
+### 1.4 Проверка страницы 404
+```bash
+curl -sI "$ARGUMENTS/this-page-does-not-exist-12345" | grep -Ei "HTTP" 2>/dev/null
+```
+Проверь: сервер должен вернуть 404, а не 200 или редирект.
+
+### 1.5 Raw HTML главной страницы
+Получи `$ARGUMENTS` через WebFetch (raw HTML до JS-рендеринга). Проверь:
+
+**Мета-теги:**
+- `<title>` — длина 30–60 символов, уникальный, ключевое слово ближе к началу
+- `<meta name="description">` — длина 70–160 символов, содержит призыв к действию
+- `<link rel="canonical">` — совпадает с текущим URL, без GET-параметров
+- `<meta name="robots">` — нет `noindex` на важных страницах
+- `<html lang="...">` — указан язык (ru-RU для русскоязычных)
+- `<meta name="viewport">` — обязателен для мобильных
+- `<meta charset="UTF-8">` — кодировка указана
+
+**Социальные теги:**
+- Open Graph: `og:title`, `og:description`, `og:image` (1200×630px), `og:type`, `og:url`, `og:locale`
+- Twitter Card: `twitter:card`, `twitter:title`, `twitter:image`
+
+**Аналитика и верификация:**
+- Наличие кода Яндекс.Метрики (mc.yandex.ru или metrika.yandex.ru)
+- Наличие Google Analytics / GTM (googletagmanager.com или google-analytics.com)
+- Верификация Яндекс.Вебмастера (`<meta name="yandex-verification">`)
+- Верификация Google Search Console (`<meta name="google-site-verification">`)
+
+**Schema.org:**
+- `<script type="application/ld+json">` — какие типы присутствуют
+- Обязательно для коммерческих сайтов: Organization (с адресом и телефоном), WebSite
+- Желательно: BreadcrumbList, LocalBusiness / MedicalWebPage (для фармы), FAQ
+
+**Структура контента:**
+- H1–H6 иерархия: ровно один H1, логичная структура H2/H3
+- Изображения без `alt` или с пустым `alt=""`
+- Наличие хлебных крошек (breadcrumbs) в HTML
+
+**E-E-A-T сигналы:**
+- Есть ли ссылки на страницы «О компании», «Контакты», «FAQ»
+- Есть ли информация об авторах/специалистах
+- Есть ли страница с юридической информацией / политикой конфиденциальности
+
+### 1.6 URL-структура
+Проверь на главной и 2–3 страницах из sitemap:
+- URL содержит только латиницу в нижнем регистре и цифры (без кириллицы)
+- Слова разделены дефисами, не подчёркиваниями
+- URL заканчиваются на `/` (если без расширения), нет дублей со слэшем и без
+- ЧПУ (человеко-понятные URL), не числовые идентификаторы
+
+### 1.7 Технические HTTP-заголовки
+```bash
+# Полные заголовки ответа
+curl -sI "$ARGUMENTS" 2>/dev/null
+
+# Скорость ответа (TTFB)
 curl -o /dev/null -s -w "DNS:%{time_namelookup}s Connect:%{time_connect}s TTFB:%{time_starttransfer}s Total:%{time_total}s\n" "$ARGUMENTS" 2>/dev/null
 
-# Сжатие (gzip/br)
+# Сжатие gzip/brotli
 curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding" 2>/dev/null
 ```
+
+Проверь следующие заголовки:
+- **Content-Encoding**: gzip или br — должен присутствовать
+- **Strict-Transport-Security (HSTS)**: `max-age=31536000; includeSubDomains`
+- **X-Frame-Options**: `SAMEORIGIN` (защита от кликджекинга)
+- **Content-Security-Policy**: желательно для безопасности
+- **Cache-Control**: для HTML — `max-age` минимум 3600, для статики — 31536000
+- **Last-Modified / ETag**: должны присутствовать для корректного кэширования
+- **Content-Type**: должен содержать `charset=utf-8`
+
+### 1.8 Проверка дополнительных страниц
+Для 2–3 URL из sitemap получи raw HTML через WebFetch. На каждой проверь:
+- title (уникальный, не дублирует другие страницы)
+- meta description (уникальная, 70–160 символов)
+- количество H1 (ровно один)
+- canonical (совпадает с URL страницы)
+- наличие хлебных крошек
 
 ---
 
@@ -124,9 +190,9 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` в Chrome. Затем:
 
-1. Сделай скриншот и сохрани как `seo-audit-output/desktop-${DOMAIN}-${DATETIME}.png`
+1. Сделай скриншот → `seo-audit-output/desktop-${DOMAIN}-${DATETIME}.png`
 
-2. Выполни в консоли браузера для получения SEO-данных:
+2. Выполни в консоли браузера:
 ```javascript
 JSON.stringify({
   title: document.title,
@@ -145,26 +211,44 @@ JSON.stringify({
   brokenImgs: [...document.querySelectorAll('img')].filter(i => !i.complete || i.naturalWidth === 0).length,
   internalLinks: new Set([...document.querySelectorAll('a[href]')].map(a => a.href).filter(h => h.startsWith(location.origin))).size,
   externalLinks: [...document.querySelectorAll('a[href]')].filter(a => a.href && !a.href.startsWith(location.origin) && a.href.startsWith('http')).length,
+  externalNoFollow: [...document.querySelectorAll('a[href]')].filter(a => a.href && !a.href.startsWith(location.origin) && a.href.startsWith('http') && (a.rel||'').includes('nofollow')).length,
   nofollowLinks: document.querySelectorAll('a[rel*=nofollow]').length,
   schemaTypes: [...document.querySelectorAll('script[type="application/ld+json"]')].map(s => { try { const d = JSON.parse(s.textContent); return d['@type']; } catch(e) { return 'parse_error'; } }),
+  hasBreadcrumbs: !!document.querySelector('[itemtype*="BreadcrumbList"], .breadcrumb, .breadcrumbs, nav[aria-label*="breadcrumb" i]'),
+  hasNavMenu: !!document.querySelector('nav, [role=navigation]'),
   ogTitle: document.querySelector('meta[property="og:title"]')?.content,
   ogImage: document.querySelector('meta[property="og:image"]')?.content,
   twitterCard: document.querySelector('meta[name="twitter:card"]')?.content,
   hasViewport: !!document.querySelector('meta[name=viewport]'),
+  hasYandexMetrika: !!document.querySelector('script[src*="mc.yandex"], script[src*="metrika.yandex"]') || document.documentElement.innerHTML.includes('ym('),
+  hasGTM: document.documentElement.innerHTML.includes('googletagmanager'),
   pageSize: document.documentElement.innerHTML.length,
+  hasAboutPage: [...document.querySelectorAll('a[href]')].some(a => /o-kompanii|about|о-компании/i.test(a.href)),
+  hasFAQ: [...document.querySelectorAll('a[href]')].some(a => /faq|chasto|вопрос/i.test(a.href)) || !!document.querySelector('[itemtype*="FAQPage"], .faq'),
+  hasContacts: [...document.querySelectorAll('a[href]')].some(a => /kontakt|contact/i.test(a.href)),
+  hasPrivacyPolicy: [...document.querySelectorAll('a[href]')].some(a => /privacy|policy|konfidencialnost|политик/i.test(a.href + a.textContent)),
   jsErrors: window.__seoErrors || []
 }, null, 2)
 ```
 
 3. Проверь JS-ошибки в консоли (красные сообщения)
 
-4. Сравни: если JS-рендеринг изменил title/H1/контент по сравнению с WebFetch — это **JS-зависимый сайт** (критично для SEO)
+4. Сравни title/H1/meta description с WebFetch — если изменились, сайт **JS-зависимый** (критично для индексации Яндексом)
+
+5. Проверь внутренние ссылки на качество анкоров:
+```javascript
+// Примеры внутренних ссылок с их текстами
+[...document.querySelectorAll('a[href]')]
+  .filter(a => a.href.startsWith(location.origin) && a.textContent.trim())
+  .slice(0, 20)
+  .map(a => ({ text: a.textContent.trim().slice(0, 50), href: a.pathname }))
+```
 
 ### 2.2 Мобильный вид
-Эмулируй мобильное устройство (открой DevTools → Toggle Device Toolbar → выбери "iPhone 14" или viewport 390×844). Затем:
+Эмулируй мобильное устройство (DevTools → Toggle Device Toolbar → iPhone 14, viewport 390×844). Затем:
 1. Перезагрузи страницу
 2. Сделай скриншот → `seo-audit-output/mobile-${DOMAIN}-${DATETIME}.png`
-3. Проверь: текст читаем, кнопки ≥ 48px, нет горизонтального скролла
+3. Проверь: текст читаем (≥ 12px), кнопки ≥ 48px, нет горизонтального скролла, шрифты не слишком мелкие
 
 ### 2.3 Проверка Lighthouse (если доступен)
 ```bash
@@ -172,13 +256,13 @@ lighthouse "$ARGUMENTS" \
   --output json \
   --chrome-flags="--headless=new" \
   --only-categories=seo,performance,accessibility,best-practices \
-  --output-path seo-audit-output/lighthouse.json \
+  --output-path seo-audit-output/lighthouse-${DATETIME}.json \
   --quiet 2>/dev/null && echo "Lighthouse OK" || echo "Lighthouse not installed"
 ```
 
-Если Lighthouse доступен — извлеки оценки из JSON:
+Если Lighthouse доступен — извлеки оценки:
 ```bash
-cat seo-audit-output/lighthouse.json | node -e "
+cat seo-audit-output/lighthouse-${DATETIME}.json | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
 const cats = d.categories;
 console.log('SEO:', Math.round(cats.seo?.score*100));
@@ -189,20 +273,40 @@ console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
 ```
 
 ### 2.4 Проверка дополнительных страниц
-Для 2–3 URL из sitemap повтори шаги 1.3 и 2.1 (без скриншотов).
+Для 2–3 URL из sitemap — повтори шаги 1.5 и консольный скрипт из 2.1 (без скриншотов).
+
+### 2.5 Проверка Schema.org (детальная)
+На главной проверь полноту Schema.org разметки:
+```javascript
+[...document.querySelectorAll('script[type="application/ld+json"]')]
+  .map(s => { try { return JSON.parse(s.textContent); } catch(e) { return null; } })
+  .filter(Boolean)
+```
+Для фармацевтических/медицинских сайтов проверь наличие:
+- `Organization` — с `name`, `url`, `telephone`, `address` (PostalAddress)
+- `MedicalWebPage` или `Drug` — для страниц препаратов
+- `BreadcrumbList` — на внутренних страницах
+- `FAQPage` — если есть блок FAQ на странице
+- `Article` / `BlogPosting` — на информационных страницах
 
 ---
 
 ## Фаза 3 — Формирование данных отчёта
 
-Собери все данные в JSON-файл `seo-audit-output/report-data.json` со структурой:
+Собери все данные в JSON-файл `seo-audit-output/report-data.json`.
+
+**Важно**: каждая рекомендация должна содержать:
+- `priority`: "high" | "medium" | "low" — влияние на ранжирование
+- `difficulty`: "low" | "medium" | "high" — сложность внесения правок
+- `fix`: краткий пример решения (код или конкретное действие)
 
 ```json
 {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
+  "mode": "full | basic",
   "summary": {
-    "summary": "2-3 предложения об общем состоянии SEO сайта",
+    "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
     "critical": N,
     "warnings": N,
@@ -215,10 +319,19 @@ console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
     "Мобильность": N,
     "Скорость загрузки": N,
     "Open Graph / Соцсети": N,
-    "Структурированные данные": N
+    "Структурированные данные": N,
+    "E-E-A-T и контент": N,
+    "Внутренняя перелинковка": N,
+    "Аналитика": N
   },
   "recommendations": [
-    { "title": "...", "description": "..." }
+    {
+      "title": "Название рекомендации",
+      "description": "Описание проблемы и её влияние на SEO",
+      "priority": "high",
+      "difficulty": "low",
+      "fix": "Конкретный пример: nginx.conf — добавить gzip on; или код Schema.org"
+    }
   ],
   "pages": [
     {
@@ -229,64 +342,106 @@ console.log('Best Practices:', Math.round(cats['best-practices']?.score*100));
     }
   ],
   "technical": [
-    { "check": "HTTPS", "status": "ok|warning|critical", "value": "..." },
+    { "check": "HTTPS", "status": "ok|warning|critical|info", "value": "..." },
+    { "check": "www → non-www редирект", "status": "...", "value": "..." },
+    { "check": "http → https редирект", "status": "...", "value": "..." },
     { "check": "robots.txt", "status": "...", "value": "..." },
     { "check": "sitemap.xml", "status": "...", "value": "..." },
+    { "check": "Страница 404", "status": "...", "value": "..." },
     { "check": "TTFB", "status": "...", "value": "..." },
     { "check": "Gzip/Brotli", "status": "...", "value": "..." },
+    { "check": "HSTS", "status": "...", "value": "..." },
+    { "check": "X-Frame-Options", "status": "...", "value": "..." },
+    { "check": "Cache-Control", "status": "...", "value": "..." },
+    { "check": "Last-Modified / ETag", "status": "...", "value": "..." },
     { "check": "Canonical", "status": "...", "value": "..." },
-    { "check": "Schema.org", "status": "...", "value": "..." },
+    { "check": "H1 структура", "status": "...", "value": "..." },
+    { "check": "Meta description длина", "status": "...", "value": "..." },
     { "check": "Open Graph", "status": "...", "value": "..." },
+    { "check": "Twitter Card", "status": "...", "value": "..." },
+    { "check": "Schema.org", "status": "...", "value": "..." },
     { "check": "Mobile viewport", "status": "...", "value": "..." },
-    { "check": "lang атрибут", "status": "...", "value": "..." }
+    { "check": "JS-зависимость контента", "status": "...", "value": "..." },
+    { "check": "lang атрибут", "status": "...", "value": "..." },
+    { "check": "Яндекс.Метрика", "status": "...", "value": "..." },
+    { "check": "Google Analytics / GTM", "status": "...", "value": "..." },
+    { "check": "Яндекс.Вебмастер (верификация)", "status": "...", "value": "..." },
+    { "check": "Хлебные крошки", "status": "...", "value": "..." },
+    { "check": "E-E-A-T: О компании", "status": "...", "value": "..." },
+    { "check": "E-E-A-T: FAQ", "status": "...", "value": "..." },
+    { "check": "URL структура", "status": "...", "value": "..." },
+    { "check": "Сервер", "status": "info", "value": "..." }
   ]
 }
 ```
 
-Заполни корректными значениями на основе всех собранных данных. Оценки выставляй по шкале 1–10.
+Заполни корректными значениями. Оценки — по шкале 1–10. При отсутствии данных используй null.
 
 ---
 
 ## Фаза 4 — Генерация отчётов
 
 ### Markdown-отчёт
-Создай `seo-audit-output/${REPORT_BASE}.md` с содержимым:
+Создай `seo-audit-output/${REPORT_BASE}.md` со структурой:
 
 ```markdown
 # SEO Аудит: [ДОМЕН]
-**Дата**: [дата] | **Инструмент**: Claude Code SEO Audit Skill
+**Дата**: [YYYY-MM-DD HH:MM] | **Сайт**: [URL] | **Инструмент**: Claude Code SEO Audit
+
+> [⚠️ Базовый режим / ✅ Полный режим Chrome]
+
+---
 
 ## Исполнительное резюме
-[summary из данных]
+[summary]
 
-## Оценки
+- **Проверено страниц**: N
+- 🔴 **Критических**: N | 🟡 **Предупреждений**: N | 🟢 **Хорошо**: N
+
+---
+
+## Оценки по категориям
 | Категория | Оценка | |
 |-----------|--------|---|
-[строки с оценками и эмодзи-индикаторами]
+[строки с оценками]
+
+**Средняя оценка: X/10**
+
+---
 
 ## 🔴 Критические ошибки
-[список]
+[по каждой: **Важность: Высокая** | **Сложность: Низкая/Средняя/Высокая** + описание + пример решения]
 
 ## 🟡 Предупреждения
-[список]
+[аналогично]
 
 ## 🟢 Что работает хорошо
 [список]
 
+---
+
 ## Приоритетный план действий
-[нумерованный список рекомендаций]
+[нумерованный список: 1. [СРОЧНО/ВЫСОКИЙ/СРЕДНИЙ] Название — описание — пример исправления]
+
+---
 
 ## Технические детали
-[таблица всех проверок]
+[полная таблица проверок]
+
+---
+
+## Анализ по страницам
+[по каждой проверенной странице]
+
+---
 
 ## Скриншоты
-- Desktop: seo-audit-output/desktop.png
-- Mobile: seo-audit-output/mobile.png
+- Desktop: [путь]
+- Mobile: [путь]
 ```
 
 ### HTML + PDF отчёт
 ```bash
-# Генерация HTML и PDF через Chrome
 node "$(dirname "$0")/generate-report.js" \
   seo-audit-output/report-data.json \
   seo-audit-output
@@ -301,9 +456,10 @@ node "$(dirname "$0")/generate-report.js" \
 ```
 ✅ SEO-аудит завершён
 
+Сайт: $ARGUMENTS
+Режим: [Полный Chrome / Базовый]
 Проверено страниц: N
-🔴 Критических: N
-🟡 Предупреждений: N
+🔴 Критических: N  🟡 Предупреждений: N  🟢 Хорошо: N
 
 Файлы:
   seo-audit-output/${REPORT_BASE}.md          — Markdown
@@ -313,7 +469,7 @@ node "$(dirname "$0")/generate-report.js" \
   seo-audit-output/mobile-${DOMAIN}-${DATETIME}.png  — скриншот мобильный
 
 Топ-3 приоритетных исправления:
-1. ...
-2. ...
-3. ...
+1. [СРОЧНО, сложность: низкая] ...
+2. [СРОЧНО, сложность: средняя] ...
+3. [ВЫСОКИЙ, сложность: низкая] ...
 ```
