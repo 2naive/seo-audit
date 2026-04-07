@@ -84,7 +84,7 @@ function buildHTML(data) {
   const scoresRows = scores ? Object.entries(scores).filter(([,v]) => v !== null).map(([cat, val]) => {
     const details = scoreDetails?.[cat] ?? [];
     const detailsHtml = details.length
-      ? `<div style="margin-top:6px;font-size:12px;color:#475569;line-height:1.7">${details.map(d => `<div>${d}</div>`).join('')}</div>`
+      ? `<div style="margin-top:6px;font-size:13px;color:#475569;line-height:1.7">${details.map(d => `<div>${esc(d)}</div>`).join('')}</div>`
       : '';
     return `
     <tr>
@@ -109,7 +109,7 @@ function buildHTML(data) {
           <a href="${p.url}" style="color:#3b82f6;text-decoration:none">${p.url.replace(/^https?:\/\/[^/]+/, '') || '/'}</a>
         </td>
         <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${severityBadge(i.severity)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">${i.msg}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">${esc(i.msg)}</td>
       </tr>`)
   ).join('');
 
@@ -124,14 +124,14 @@ function buildHTML(data) {
     <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <div style="min-width:28px;height:28px;background:#1e40af;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${idx}</div>
-        <div style="font-weight:700;font-size:15px;flex:1">${r.title}</div>
+        <div style="font-weight:700;font-size:15px;flex:1">${esc(r.title)}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${r.priority ? priorityBadge(r.priority) : ''}
           ${r.difficulty ? difficultyBadge(r.difficulty) : ''}
         </div>
       </div>
-      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:${r.fix ? '10px' : '0'}">${r.description}</div>
-      ${r.fix ? `<div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;overflow-x:auto">${esc(r.fix)}</div>` : ''}
+      <div style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:${r.fix ? '10px' : '0'}">${esc(r.description)}</div>
+      ${r.fix ? `<div style="background:#f8fafc;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;font-family:monospace;font-size:12px;color:#1e293b;white-space:pre-wrap;word-break:break-all;overflow-wrap:break-word">${esc(r.fix)}</div>` : ''}
     </div>`;
   }
 
@@ -139,7 +139,7 @@ function buildHTML(data) {
     if (!recsArr.length) return '';
     return `
     <div style="margin-bottom:20px">
-      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:12px">${title}</div>
+      <div style="font-size:13px;font-weight:700;letter-spacing:.02em;color:#64748b;margin-bottom:12px">${title}</div>
       ${recsArr.map((r, i) => recCard(r, startIdx + i)).join('')}
     </div>`;
   }
@@ -148,7 +148,7 @@ function buildHTML(data) {
     <tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:500">${t.check}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${severityBadge(t.status)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569">${t.value ?? ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;word-break:break-word">${esc(t.value ?? '')}</td>
     </tr>`).join('');
 
   const stats = summary ?? {};
@@ -176,10 +176,14 @@ function buildHTML(data) {
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 10px 12px; background: #f8fafc; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
   .mode-badge { display:inline-block; padding:4px 12px; border-radius:6px; font-size:13px; font-weight:600; background:rgba(255,255,255,.2); margin-top:8px; }
+  @page { size: A4; margin: 16mm 14mm; }
   @media print {
-    body { background: #fff; }
-    .page { padding: 20px; }
-    .card { break-inside: avoid; }
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 0; max-width: 100%; }
+    .card { break-inside: avoid; margin-bottom: 16px; }
+    .stat-grid { break-inside: avoid; }
+    .header-bar { break-inside: avoid; }
+    tr { break-inside: avoid; }
   }
 </style>
 </head>
@@ -201,7 +205,7 @@ function buildHTML(data) {
         <div style="opacity:.7;font-size:13px">из 10</div>
       </div>
     </div>
-    ${stats.summary ? `<div style="margin-top:20px;padding:14px;background:rgba(255,255,255,.15);border-radius:8px;font-size:14px;line-height:1.6">${stats.summary}</div>` : ''}
+    ${stats.summary ? `<div style="margin-top:20px;padding:14px;background:rgba(255,255,255,.15);border-radius:8px;font-size:14px;line-height:1.6">${esc(stats.summary)}</div>` : ''}
   </div>
 
   <!-- Stats -->
