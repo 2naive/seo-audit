@@ -309,7 +309,29 @@ JSON.stringify({
 ```
 
 ### 2.2 Мобильный вид
-Измени размер окна через `mcp__claude-in-chrome__resize_window` на 390×844. Перейди на страницу через `mcp__claude-in-chrome__navigate` (тот же tabId). Убедись через `mcp__claude-in-chrome__tabs_context_mcp` что нужная вкладка активна. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot). Извлеки base64-строку из ответа, запиши через Write-инструмент в `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64`, затем: `base64 -d "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64"`. Проверь через `mcp__claude-in-chrome__javascript_tool`: текст ≥ 12px, кнопки ≥ 48px, нет горизонтального скролла.
+
+**⚠️ Это отдельный новый скриншот — не переиспользуй base64 от шага 2.1.**
+
+Выполни строго по порядку:
+1. `mcp__claude-in-chrome__resize_window` — ширина 390, высота 844
+2. `mcp__claude-in-chrome__navigate` (тот же tabId, тот же URL) — дождись загрузки
+3. Подожди 1 секунду: `sleep 1`
+4. Вызови `mcp__claude-in-chrome__computer` с action: screenshot — **это новый вызов инструмента, результат будет отличаться от шага 2.1**
+5. Из ответа этого вызова извлеки base64-строку (она должна отличаться от десктопной — страница уже в viewport 390px)
+6. Запиши через Write-инструмент в `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64`
+7. `base64 -d "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.b64"`
+8. Проверь: `ls -lh "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png"` — файл должен быть > 20 KB
+
+Через `mcp__claude-in-chrome__javascript_tool` проверь мобильную вёрстку:
+```javascript
+JSON.stringify({
+  viewportWidth: window.innerWidth,
+  hasHorizontalScroll: document.body.scrollWidth > window.innerWidth,
+  smallButtons: [...document.querySelectorAll('button,a,input[type=submit],[role=button]')]
+    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height < 44; }).length
+})
+```
+Ожидаемо: `viewportWidth` ≈ 390, `hasHorizontalScroll: false`.
 
 ### 2.3 Lighthouse
 ```bash
@@ -396,7 +418,7 @@ console.log(JSON.stringify({
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.4.1",
+  "skillVersion": "1.4.2",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
