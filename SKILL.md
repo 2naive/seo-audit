@@ -212,7 +212,11 @@ curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
-1. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) и сохрани в `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png` с помощью Write-инструмента (base64 → файл).
+1. Сделай скриншот:
+   - Убедись, что активна именно та вкладка с egrul.org (tabId из шага 0) — вызови `mcp__claude-in-chrome__tabs_context_mcp` и убедись, что нужная вкладка активна
+   - Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot)
+   - Полученный base64-PNG сохрани в файл: используй Bash команду `echo "BASE64_DATA" | base64 -d > "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` (замени BASE64_DATA на реальные данные из ответа инструмента)
+   - Проверь: `ls -lh "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"` — файл должен быть > 50 KB
 
 2. Выполни через `mcp__claude-in-chrome__javascript_tool` (используй тот же tabId):
 ```javascript
@@ -284,10 +288,7 @@ JSON.stringify({
 ```
 
 ### 2.2 Мобильный вид
-Измени размер окна через `mcp__claude-in-chrome__resize_window` на 390×844 (iPhone 14). Затем:
-1. Перейди на страницу повторно через `mcp__claude-in-chrome__navigate`
-2. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) и сохрани в `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png`
-3. Проверь через `mcp__claude-in-chrome__javascript_tool`: текст читаем (≥ 12px), кнопки ≥ 48px, нет горизонтального скролла
+Измени размер окна через `mcp__claude-in-chrome__resize_window` на 390×844. Перейди на страницу через `mcp__claude-in-chrome__navigate` (тот же tabId). Убедись через `mcp__claude-in-chrome__tabs_context_mcp` что нужная вкладка активна. Сделай скриншот через `mcp__claude-in-chrome__computer` (action: screenshot) и сохрани аналогично шагу 2.1: `echo "BASE64" | base64 -d > "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.png"`. Проверь через `mcp__claude-in-chrome__javascript_tool`: текст ≥ 12px, кнопки ≥ 48px, нет горизонтального скролла.
 
 ### 2.3 Lighthouse
 ```bash
