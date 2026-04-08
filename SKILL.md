@@ -550,27 +550,38 @@ lighthouse "$ARGUMENTS" \
   --quiet 2>/dev/null
 ```
 
-**Извлечение десктопного скриншота** из второго Lighthouse JSON (viewport 1350×940):
+**Извлечение десктопного скриншота** из второго Lighthouse JSON (viewport 1350×940). Lighthouse desktop preset обычно отдаёт **WEBP** в `fullPageScreenshot`, реже JPEG/PNG — определяем расширение по mime-типу из data URI:
 ```bash
 node -e "
 const fs = require('fs');
 const lh = JSON.parse(fs.readFileSync('${OUTPUT_DIR}/lighthouse-desktop-${DOMAIN}-${DATETIME}.json', 'utf8'));
-// Lighthouse desktop preset кладёт большой скриншот в fullPageScreenshot или final-screenshot
 const fullShot = lh.fullPageScreenshot?.screenshot?.data;
 const finalShot = lh.audits['final-screenshot']?.details?.data;
 const shot = fullShot || finalShot;
-if (shot) {
-  const b64 = shot.replace(/^data:image\/[^;]+;base64,/, '');
-  fs.writeFileSync('${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg', Buffer.from(b64, 'base64'));
-  console.log('Desktop screenshot saved:', '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg', '(' + Buffer.from(b64,'base64').length + ' bytes)');
-} else {
+if (!shot) {
   console.error('FAIL: ни fullPageScreenshot ни final-screenshot не найдены в desktop Lighthouse JSON');
   process.exit(1);
 }
+// Определи формат из data URI: data:image/webp;base64,... или data:image/jpeg;base64,...
+const mimeMatch = shot.match(/^data:image\/(\w+);base64,/);
+const ext = mimeMatch ? mimeMatch[1].replace('jpeg','jpg') : 'jpg';
+const b64 = shot.replace(/^data:image\/[^;]+;base64,/, '');
+const outPath = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.' + ext;
+fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
+console.log('Desktop screenshot saved:', outPath, '(' + Buffer.from(b64,'base64').length + ' bytes, format=' + ext + ')');
+// Запиши путь в файл-маркер чтобы валидация шага 2.6 знала какое расширение использовать
+fs.writeFileSync('${OUTPUT_DIR}/.desktop-ext-${DOMAIN}-${DATETIME}', ext);
 "
 ```
 
-Десктоп-файл сохраняется как `.jpg` (Lighthouse отдаёт JPEG). Это **отличается** от мобильного по содержимому: viewport другой (1350×940 vs 412×823), сайт рендерится в десктопной версии. Валидация в шаге 2.6 проверит уникальность через MD5.
+После этого определи фактическое расширение десктопа:
+```bash
+DESKTOP_EXT=$(cat "${OUTPUT_DIR}/.desktop-ext-${DOMAIN}-${DATETIME}" 2>/dev/null || echo "jpg")
+DESKTOP_FILE="${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.${DESKTOP_EXT}"
+echo "Desktop screenshot path: $DESKTOP_FILE"
+```
+
+Используй этот путь в `screenshotPaths.desktop` JSON. Десктоп **отличается** от мобильного по viewport (1350×940 vs 412×823) — валидация в шаге 2.6 проверит уникальность через MD5.
 
 ### 2.6 Финальная валидация скриншотов (ОБЯЗАТЕЛЬНО)
 
@@ -580,13 +591,15 @@ if (shot) {
 node -e "
 const fs = require('fs');
 const crypto = require('crypto');
-const desktopPath  = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg';
-const mobilePath   = '${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg';
+// Десктоп может быть .jpg / .webp / .png — найди существующий файл
+const desktopBase = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}';
+const desktopPath = ['.webp','.jpg','.jpeg','.png'].map(e => desktopBase + e).find(p => fs.existsSync(p));
+const mobilePath  = '${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg';
 const lighthouseJson = '${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json';
 
 // 1. Десктоп должен существовать
-if (!fs.existsSync(desktopPath)) {
-  console.error('FAIL: десктоп-скриншот не найден по пути ' + desktopPath);
+if (!desktopPath) {
+  console.error('FAIL: десктоп-скриншот не найден (искал ' + desktopBase + '.{webp,jpg,jpeg,png}).');
   console.error('Десктоп должен быть получен через второй запуск Lighthouse с --preset=desktop (шаг 2.3).');
   process.exit(1);
 }
@@ -605,11 +618,13 @@ if (dStat.mtimeMs < referenceTime - 1000) {
   process.exit(1);
 }
 
-// 3. Десктоп — JPEG (Lighthouse desktop preset отдаёт JPEG)
+// 3. Десктоп — JPEG / PNG / WEBP (Lighthouse desktop preset обычно отдаёт WEBP)
 const isJPEG = dBuf[0]===0xff && dBuf[1]===0xd8 && dBuf[2]===0xff;
 const isPNG  = dBuf[0]===0x89 && dBuf[1]===0x50 && dBuf[2]===0x4e && dBuf[3]===0x47;
-if (!isJPEG && !isPNG) {
-  console.error('FAIL: ' + desktopPath + ' имеет magic bytes ' + dBuf.slice(0,4).toString('hex') + ', не JPEG (ffd8ff) и не PNG (89504e47).');
+const isWEBP = dBuf[0]===0x52 && dBuf[1]===0x49 && dBuf[2]===0x46 && dBuf[3]===0x46 && dBuf[8]===0x57 && dBuf[9]===0x45 && dBuf[10]===0x42 && dBuf[11]===0x50;
+const fmt = isJPEG ? 'JPEG' : isPNG ? 'PNG' : isWEBP ? 'WEBP' : null;
+if (!fmt) {
+  console.error('FAIL: ' + desktopPath + ' имеет magic bytes ' + dBuf.slice(0,12).toString('hex') + ', не JPEG/PNG/WEBP.');
   process.exit(1);
 }
 
@@ -629,9 +644,9 @@ if (fs.existsSync(mobilePath)) {
     console.error('Скорее всего ты использовал mobile final-screenshot для десктопа. Запусти ВТОРОЙ Lighthouse с --preset=desktop (шаг 2.3) и извлеки fullPageScreenshot из desktop JSON.');
     process.exit(1);
   }
-  console.log('OK: desktop ' + dBuf.length + 'B (' + (isPNG?'PNG':'JPEG') + ', MD5 ' + dHash.slice(0,8) + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile ' + mBuf.length + 'B (JPG, MD5 ' + mHash.slice(0,8) + ')');
+  console.log('OK: desktop ' + dBuf.length + 'B (' + fmt + ', MD5 ' + dHash.slice(0,8) + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile ' + mBuf.length + 'B (JPG, MD5 ' + mHash.slice(0,8) + ')');
 } else {
-  console.log('OK: desktop ' + dBuf.length + 'B (' + (isPNG?'PNG':'JPEG') + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile отсутствует');
+  console.log('OK: desktop ' + dBuf.length + 'B (' + fmt + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile отсутствует');
 }
 "
 ```
@@ -788,6 +803,38 @@ JSON.stringify((() => {
 
 `coverage.blocksCovered` — массив номеров блоков мастер-чеклиста, которые скилл проверил автоматически (обычно: 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 21).
 
+### Правило 11 — Использование новых данных из siteData и pages[].metrics
+
+При формировании рекомендаций обязательно проверяй и используй данные из v1.7.0+ полей. Это критично — без этих рекомендаций отчёт будет неполным.
+
+| Поле | Условие | Рекомендация |
+|---|---|---|
+| `siteData.http2.version` | `"HTTP/1.1"` (не HTTP/2) | Включить HTTP/2 в nginx (`listen 443 ssl http2;`) — снижает RTT, мультиплексирование |
+| `siteData.http2.http3` | `false` (по умолчанию) | (info) HTTP/3 — best practice |
+| `siteData.aiCrawlers.notMentioned` | непустой и сайт коммерческий | Создать `llms.txt` или явно разрешить AI-краулеры в robots.txt — для AEO/GEO |
+| `siteData.llmsTxt.exists` | `false` | (info) Создать `llms.txt` — экспериментальный стандарт для AI-руководства |
+| `siteData.aiCrawlers.blocked` | непустой | Critical если случайно заблокированы Bingbot/Googlebot-Extended; warning если только AI |
+| `siteData.mixedContent.count` | `> 0` | Critical: исправить HTTPS-страницу с HTTP-ресурсами (2.1.2) |
+| `siteData.pagination.found && siteData.pagination.issues` | непустой | Исправить дубли title/canonical на страницах пагинации (13.3) |
+| `siteData.orphanPages.found` | непустой | Добавить внутренние ссылки на orphan-страницы из главной/sitemap |
+| `pages[].metrics.domSize` | `> 1500` | Уменьшить DOM (3.5.4) — производительность рендеринга |
+| `pages[].metrics.domDepth` | `> 32` | Упростить вложенность (3.5.4) |
+| `pages[].metrics.textHtmlRatio` | `< 15` | Контент потоплен кодом — рассмотреть упрощение шаблона (21.3.3) |
+| `pages[].metrics.semanticTags.main` | `0` | Добавить `<main>` для GEO/доступности (17.3.6) |
+| `pages[].metrics.aeoReadiness.firstParagraphWords` | `> 60` | AEO: сократить первый абзац до 60 слов — для AI-ответов (17.2.1) |
+| `pages[].metrics.aeoReadiness.hasFaqSection` | `false` для коммерческого | Добавить FAQ-секцию + FAQPage Schema (17.2.2) |
+| `pages[].metrics.first100WordsHasH1Keyword` | `false` | Ключ из H1 включить в первые 100 слов (5.7.1) |
+| `pages[].metrics.hasFavicon` | `false` | Добавить favicon (7.3.2) |
+| `pages[].metrics.hasCookieConsent` | `false` для EU/RU аудитории | Cookie consent banner (152-ФЗ / GDPR, 13.6.2) |
+| `pages[].metrics.formsHttps.insecureActions` | непустой | Critical: HTTP-action в форме (2.5.2) |
+| `pages[].metrics.protocolRelativeCount` | `> 0` | Заменить `//example.com` на `https://` (2.5.3) |
+| `pages[].metrics.closeTapTargets` | `> 5` (mobile) | Увеличить расстояние между кликабельными элементами (4.2.2) |
+| `pages[].metrics.fontDisplay` | элементы без `display: swap` | Добавить `font-display: swap` (3.5.2) |
+
+**Сравнение mobile/desktop content parity** (4.3.2): сравни `pages[].metrics.bodyTextLen` (десктоп из 2.1) с `bodyTextLen` из 2.2 (mobile). Если `mobile < desktop * 0.7` — критично, mobile-first indexing будет видеть только урезанную версию.
+
+### Правило 12 — Coverage блоков
+
 `coverage.blocksManual` — блоки требующие ручной работы / доступа к внешним системам:
 - Блок 8 (E-E-A-T — частично, экспертная оценка контента)
 - Блок 14 (off-page / ссылочный профиль)
@@ -804,7 +851,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.7.1",
+  "skillVersion": "1.7.2",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -955,8 +1002,8 @@ JSON.stringify((() => {
     "bfcacheFailures": ["unload-listener", "cache-control-no-store"]
   },
   "screenshotPaths": {
-    "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg",  // JPG из Lighthouse --preset=desktop fullPageScreenshot (шаг 2.3)
-    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"     // JPG из Lighthouse mobile final-screenshot (шаг 2.3)
+    "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.{ext}",  // расширение зависит от формата Lighthouse desktop fullPageScreenshot: обычно .webp, реже .jpg
+    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"       // JPG из Lighthouse mobile final-screenshot (шаг 2.3)
   },
   "technical": [
     { "check": "HTTPS", "block": "2.1", "status": "ok|warning|critical|info", "value": "..." },

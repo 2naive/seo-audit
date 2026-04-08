@@ -1,5 +1,26 @@
 # Changelog — SEO Audit Skill
 
+## [1.7.2] — 2026-04-08
+
+### Fixed (по результатам теста v1.7.1 на maxilac.ru)
+
+- **Lighthouse desktop preset отдаёт WEBP, не JPEG** — десктоп-файл `.jpg` имел magic bytes `52 49 46 46 ... 57 45 42 50` (WEBP RIFF-контейнер). Валидация v1.7.1 не знала про WEBP и могла пропустить файл с неверным расширением.
+  - Шаг 2.3: extraction теперь определяет формат из data URI mime-типа (`data:image/webp;base64,...`) и сохраняет файл с правильным расширением (`.webp`, `.jpg` или `.png`)
+  - Шаг 2.6: валидация принимает WEBP magic bytes (`52494646...57454250`) в дополнение к JPEG/PNG
+  - Шаг 2.6: ищет десктоп-файл с любым из расширений `.webp`/`.jpg`/`.jpeg`/`.png`
+  - `generate-report.js`: `screenshotBase64` поддерживает `image/webp` MIME-тип
+
+- **Агент не использовал собранные v1.7.0/v1.7.1 данные в рекомендациях** — `siteData.http2.version="HTTP/1.1"` собрано, но рекомендации апгрейдить не было; AI crawlers собраны, но llms.txt не предлагалось; AEO readiness собран, но не использовался.
+  - Добавлено **Правило 11** в Фазу 3: 21 явное условие → рекомендация для каждого нового поля (HTTP/2 upgrade, llms.txt, mixed content, DOM size, AEO readiness, formsHttps, и т.д.)
+  - Добавлено **Правило 12** (бывшее «coverage блоков») — переименовано
+
+### Verified (тестовый запуск v1.7.1 на maxilac.ru)
+
+- ✅ siteData полностью заполнено: 7/7 полей (llmsTxt, aiCrawlers, hreflang, http2, mixedContent, pagination, orphanPages)
+- ✅ pages[].metrics — 10/13 новых полей (3 опущены агентом для пустых результатов: fontDisplay, formsHttps, closeTapTargets, protocolRelativeCount)
+- ✅ Lighthouse desktop preset работает, mobile/desktop разные MD5
+- ❌ HTTP/1.1 detected на maxilac.ru, но рекомендации не было — фиксится Правилом 11
+
 ## [1.7.1] — 2026-04-08
 
 ### Fixed (по результатам тестового аудита maxilac.ru с v1.7.0)
