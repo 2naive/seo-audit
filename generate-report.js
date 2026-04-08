@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.8.2';
+const SKILL_VERSION = '1.8.3';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -574,14 +574,15 @@ function buildHTML(data) {
   const screenshotsHtml = (desktopSrc || mobileSrc) ? `
   <div class="card" id="screenshots">
     <h2>Скриншоты сайта</h2>
+    <p style="color:#64748b;font-size:12px;margin-bottom:14px">Показана верхняя часть страницы (above-the-fold). Полные скриншоты — в отдельных файлах рядом с отчётом.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
       ${desktopSrc ? `<div>
         <div class="screenshot-label">Десктоп · 1350×940 (Lighthouse desktop preset)</div>
-        <img src="${desktopSrc}" style="width:100%;border:1px solid #e2e8f0;border-radius:8px" alt="Desktop screenshot">
+        <div class="screenshot-frame"><img src="${desktopSrc}" alt="Desktop screenshot"></div>
       </div>` : ''}
       ${mobileSrc ? `<div>
         <div class="screenshot-label">Мобильный · 412×823 (Lighthouse mobile)</div>
-        <img src="${mobileSrc}" style="width:100%;border:1px solid #e2e8f0;border-radius:8px" alt="Mobile screenshot">
+        <div class="screenshot-frame"><img src="${mobileSrc}" alt="Mobile screenshot"></div>
       </div>` : ''}
     </div>
   </div>` : '';
@@ -774,6 +775,28 @@ function buildHTML(data) {
 
   /* ── Screenshots ────────────────────────────────────────────────────────── */
   .screenshot-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em; }
+  .screenshot-frame {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    max-height: 600px;
+    position: relative;
+    background: #f8fafc;
+  }
+  .screenshot-frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+    /* Если картинка выше 600px, верхние 600px видны через overflow:hidden родителя */
+  }
+  /* Градиентная подсветка снизу — намёк что скриншот обрезан */
+  .screenshot-frame::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0; height: 60px;
+    background: linear-gradient(to bottom, transparent, rgba(248, 250, 252, .95));
+    pointer-events: none;
+  }
 
   /* ── Not checked ────────────────────────────────────────────────────────── */
   .not-checked { background: #fffbeb; border-color: #fde68a; }
@@ -800,6 +823,7 @@ function buildHTML(data) {
     .phase-col { break-inside: avoid; }
     .tech-block { break-inside: avoid; }
     .legend-card { break-inside: avoid; }
+    .screenshot-frame { break-inside: avoid; max-height: 200mm; }
     tr { break-inside: avoid; }
     .cover { margin: 0; padding: 30mm 25mm; min-height: 297mm; }
   }
