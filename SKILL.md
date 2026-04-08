@@ -548,31 +548,128 @@ JSON.stringify((() => {
 
 **Важно по `screenshotPaths`**: используй абсолютные пути к реально сохранённым PNG-файлам. Если файл не был создан (базовый режим без Chrome), укажи `null`. generate-report.js встроит изображения в HTML/PDF через base64.
 
-**Важно по качеству рекомендаций:**
-- Не объединяй разные проблемы в одну рекомендацию. Примеры неверных объединений:
-  - ❌ "Исправить meta description" — если на одних страницах description слишком длинный, а на других отсутствует, это **две отдельные рекомендации**
-  - ❌ "Добавить хлебные крошки" — если на некоторых страницах они есть, укажи конкретно на каких нет
-- `fix` должен содержать **конкретный пример** для данного сайта, не общую фразу. Например: `"Сократить с 203 до 130 символов: «API ЕГРЮЛ и ЕГРИП — бесплатный сервис для проверки компаний по ИНН, ОГРН»"`
-- Для Schema.org всегда давай **готовый JSON-LD код** (не ссылку на документацию)
-- Для nginx/Apache всегда указывай **блок контекста** (`server {}`, `location /`)
-- Для битых изображений — указывай конкретный `src` из `brokenImgSrcs`, не общую инструкцию
-- Для нулевых ссылок — указывай конкретные href из `zeroSizeLinkHrefs`, не "проверить в DevTools"
+## Правила формирования рекомендаций (обязательные)
 
-**Обязательное правило полноты**: каждый `status: "critical"` или `status: "warning"` в массиве `technical` **обязан** иметь соответствующую запись в `recommendations`. Перед финализацией JSON пройдись по всем элементам `technical` и убедись что для каждого critical/warning есть рекомендация.
+Эти правила определяют клиентское качество отчёта. Соблюдай каждое.
 
-**Дедупликация**: одна проблема должна упоминаться в ONE месте. Если проблема попала в `scoreDetails`, не дублируй её полностью в `pages[].issues` — только конкретный URL и краткий факт. В `recommendations` — один раз с полным описанием и `fix`.
+### Правило 1 — Каждая рекомендация имеет 7 обязательных полей
 
-**Важно**: каждая рекомендация должна содержать:
-- `priority`: "high" | "medium" | "low" — влияние на ранжирование
-- `difficulty`: "low" | "medium" | "high" — сложность внесения правок
-- `fix`: конкретный пример решения для данного сайта (код или текст)
+| Поле | Назначение | Пример |
+|---|---|---|
+| `title` | Повелительное наклонение, активный глагол | «Добавьте Schema.org Organization на главную» (не «Рекомендуется рассмотреть...») |
+| `description` | Что именно не так — конкретные числа/URL для **этого** сайта | «JSON-LD разметка отсутствует на 3/3 проверенных страниц. Title главной 105 символов — обрезается в SERP после 60-го» |
+| `impact` | **Бизнес-последствие**, не технический факт | ✅ «Без Schema.org теряете блок Sitelinks Searchbox в Google и Knowledge Panel — CTR в SERP падает на 5–15% по брендовым запросам». ❌ «Отсутствует Schema.org — нужно добавить Schema.org» |
+| `priority` | high / medium / low — влияние на ранжирование | high — критично для индексации/доверия; medium — заметное влияние; low — улучшение |
+| `difficulty` | low / medium / high | low — правка одного файла; medium — несколько файлов; high — структурные изменения |
+| `effortHours` | человеко-часы из таблицы | low → "1–2 часа", medium → "4–8 часов", high → "1–3 дня" |
+| `fix` | **Готовый код** для копирования, не инструкция | ✅ полный nginx-блок с `add_header`. ❌ «настройте HSTS в nginx» |
+
+Дополнительные поля (рекомендуется):
+- `steps[]` — пошаговый план внедрения (3–5 шагов: «Открыть файл X», «Вставить блок Y», «Проверить через Z»)
+- `verify` — команда `curl`, URL валидатора или DevTools-шаг для проверки что исправлено
+- `category` — номер раздела мастер-чеклиста (`"6.1"`, `"2.2"`)
+- `categoryLabel` — короткий лейбл для бейджа («Блок 6 · Schema.org»)
+- `phase` — вычисляется автоматически, см. Правило 4
+- `affectedUrls[]` — конкретные URL, на которых найдена проблема
+- `sourceChecks[]` — массив `check`-имён из `technical[]`, на которые ссылается рекомендация
+
+### Правило 2 — Запрет на технические тавтологии в `impact`
+
+`impact` обязан быть **бизнес-формулировкой**. Запрещены формулировки вида «нужно добавить X», «отсутствует Y». Должно быть **последствие** для пользователя/SEO/бизнеса.
+
+| ❌ Плохо (тавтология) | ✅ Хорошо (бизнес-эффект) |
+|---|---|
+| «Не настроен HSTS» | «При первом визите пользователь уязвим к downgrade-атаке (man-in-the-middle), что может привести к перехвату cookies сессии» |
+| «Title слишком длинный» | «Title обрезается в SERP после 60 символов — пользователь не видит ключевые слова в конце, CTR падает» |
+| «Нет Schema.org BreadcrumbList» | «Google не строит хлебные крошки в SERP — потеря визуального якоря и кликабельности результата» |
+
+### Правило 3 — Дедупликация по URL
+
+Если одна проблема обнаружена на N страницах — это **одна** рекомендация с массивом `affectedUrls[]`, не N копий.
+
+❌ Неправильно:
+```
+1. Добавить canonical на /page1
+2. Добавить canonical на /page2
+3. Добавить canonical на /page3
+```
+✅ Правильно:
+```
+1. Добавить canonical на 3 страницы
+   affectedUrls: ["/page1", "/page2", "/page3"]
+```
+
+Исключение: если решение принципиально разное для каждого URL (например, разные title-проблемы) — отдельные рекомендации.
+
+### Правило 4 — Автоматическое назначение `phase`
+
+| Условие | phase |
+|---|---|
+| `priority=high` + `difficulty=low` | `"urgent"` (1–2 недели) |
+| `priority=high` + `difficulty=medium\|high` | `"month"` (в ближайший месяц) |
+| `priority=medium` (любая сложность) | `"month"` |
+| `priority=low` | `"strategy"` (1–3 месяца) |
+
+Внутри фазы упорядочивай: `priority desc → difficulty asc → effortHours asc`.
+
+### Правило 5 — Лимит 10–20 рекомендаций в отчёте
+
+- Меньше 8 — проверь что не упустил важное (Schema.org, canonical, безопасность)
+- Больше 20 — объедини похожие через `affectedUrls[]` или агрегируй мелкие в одну («Настроить security-заголовки» вместо отдельных HSTS, X-Frame, CSP)
+
+### Правило 6 — Полнота: каждый critical/warning в `technical` имеет рекомендацию
+
+Перед финализацией JSON пройдись по `technical[]`. Для каждого `status: "critical"` или `status: "warning"` обязательна запись в `recommendations[]` с соответствующим `sourceChecks[]`. Исключения — только `info`.
+
+### Правило 7 — Формирование `strengths[]` (3–5 пунктов)
+
+Топ-5 самых важных `ok`-проверок. Активная формулировка с конкретикой:
+- ✅ «Скорость в зелёной зоне — LCP 1.1s, CLS 0, TBT 40ms»
+- ✅ «Контент индексируется без JS-рендеринга — title/H1/meta идентичны в raw HTML и DOM»
+- ❌ «Сайт работает по HTTPS» (слишком общё)
+
+Приоритет источников: CWV → Schema.org валидна → корректные мета-теги → аналитика → безопасность.
+
+### Правило 8 — Формирование `risks[]` (3–5 пунктов)
+
+Топ-5 `critical` + `priority=high warning`. Формат «**бизнес-последствие → причина**»:
+- ✅ «Потеря rich snippets и Knowledge Panel → отсутствует Schema.org Organization»
+- ✅ «Юридический риск по 152-ФЗ → нет страницы политики конфиденциальности»
+- ❌ «Нет HSTS» (только техфакт)
+
+### Правило 9 — `executiveSummary.grade` (буквенная оценка)
+
+| Средний score (0–10) | grade |
+|---|---|
+| ≥ 9.0 | A |
+| 7.5–8.9 | B |
+| 6.0–7.4 | C |
+| 4.0–5.9 | D |
+| < 4.0 | F |
+
+`headline` — одна фраза с главным выводом. `onePhrase` — самая короткая суть для печати в обложке.
+
+### Правило 10 — Сложение `coverage`
+
+`coverage.blocksCovered` — массив номеров блоков мастер-чеклиста, которые скилл проверил автоматически (обычно: 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 21).
+
+`coverage.blocksManual` — блоки требующие ручной работы / доступа к внешним системам:
+- Блок 8 (E-E-A-T — частично, экспертная оценка контента)
+- Блок 14 (off-page / ссылочный профиль)
+- Блок 15 (локальное SEO — GBP / Яндекс.Бизнес)
+- Блок 16 (международное / hreflang — если применимо)
+- Блок 18 (краулинговый бюджет — нужны логи)
+- Блок 19 (мониторинг — операционная активность)
+- Блок 20 (полный WCAG-аудит)
+
+`notChecked[]` — короткий список конкретных проверок которые не выполнены автоматически (для раздела «Что не проверялось» в отчёте).
 
 ```json
 {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.5.3",
+  "skillVersion": "1.6.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -592,18 +689,73 @@ JSON.stringify((() => {
     "Внутренняя перелинковка": N,
     "Аналитика": N
   },
+  "executiveSummary": {
+    "grade": "B",
+    "headline": "Хороший технический базис, критические пробелы в Schema.org и безопасности",
+    "onePhrase": "Технически сайт в форме, но три блокирующих пункта мешают индексации и доверию"
+  },
+  "strengths": [
+    "Скорость в зелёной зоне — LCP 1.1s, CLS 0",
+    "Open Graph полный, Twitter Card корректный",
+    "Контент индексируется без JS-рендеринга — title/H1/desc одинаковы в raw HTML и после JS"
+  ],
+  "risks": [
+    "Потеря rich snippets и Knowledge Panel — отсутствует Schema.org Organization",
+    "Уязвимость к downgrade-атакам при первом визите — нет HSTS",
+    "Юридический риск по 152-ФЗ — нет страницы политики конфиденциальности"
+  ],
+  "coverage": {
+    "blocksCovered": ["1","2","3","4","5","6","7","9","10","11","12","13","21"],
+    "blocksManual":  ["8","14","15","16","18","19","20"],
+    "automatedCount": 13,
+    "manualCount": 7
+  },
+  "notChecked": [
+    "GSC Search Performance / индексация (требует доступ в Search Console)",
+    "Ссылочный профиль и Disavow (требует Ahrefs/Semrush)",
+    "Каннибализация ключевых запросов (требует GSC + ручную проверку)",
+    "Hreflang при многоязычном сайте (если применимо)",
+    "Локальное SEO: Google Business Profile / Яндекс.Бизнес"
+  ],
   "recommendations": [
     {
-      "title": "Название рекомендации",
-      "description": "Описание проблемы и её влияние на SEO",
+      "title": "Название рекомендации (повелительное наклонение: Добавьте, Сократите)",
+      "description": "Что именно не так — с конкретными числами/URL для данного сайта",
+      "impact": "Бизнес-последствие: «Без Schema.org вы теряете блок Sitelinks Searchbox и rich snippets — CTR в SERP может упасть на 5-15% по брендовым запросам». НЕ технический факт типа «нужно добавить Schema.org».",
       "priority": "high",
       "difficulty": "low",
-      "fix": "Конкретный пример: nginx.conf — добавить gzip on; или код Schema.org"
+      "effortHours": "1-2 часа",
+      "phase": "urgent",
+      "category": "6.1",
+      "categoryLabel": "Блок 6 · Schema.org",
+      "steps": [
+        "Открыть header.php (или соответствующий шаблон)",
+        "В блок <head> вставить готовый JSON-LD из поля fix",
+        "Заменить плейсхолдеры [телефон], [адрес] на реальные данные",
+        "Залить на прод и проверить через Rich Results Test"
+      ],
+      "fix": "Готовый код для копирования: <script type=\"application/ld+json\">{...}</script>",
+      "verify": "https://search.google.com/test/rich-results — вставить URL главной, должны появиться Organization и WebSite",
+      "affectedUrls": ["https://example.com/", "https://example.com/services/"],
+      "sourceChecks": ["Schema.org", "Структурированные данные"]
     }
   ],
   "pages": [
     {
       "url": "...",
+      "template": "home | category | service | article | contacts | faq | other",
+      "metrics": {
+        "title": "...",
+        "titleLen": 57,
+        "metaDesc": "...",
+        "metaDescLen": 128,
+        "h1": "...",
+        "canonical": "...",
+        "hasSchema": true,
+        "schemaTypes": ["Organization", "WebSite"],
+        "hasBreadcrumbs": false,
+        "hasOpenGraph": true
+      },
       "issues": [
         { "severity": "critical|warning|info|ok", "msg": "..." }
       ]
@@ -645,46 +797,52 @@ JSON.stringify((() => {
     "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"     // JPG из Lighthouse final-screenshot (шаг 2.3)
   },
   "technical": [
-    { "check": "HTTPS", "status": "ok|warning|critical|info", "value": "..." },
-    { "check": "www → non-www редирект", "status": "...", "value": "..." },
-    { "check": "http → https редирект", "status": "...", "value": "..." },
-    { "check": "robots.txt", "status": "...", "value": "..." },
-    { "check": "sitemap.xml", "status": "...", "value": "..." },
-    { "check": "Страница 404", "status": "...", "value": "..." },
-    { "check": "TTFB", "status": "...", "value": "..." },
-    { "check": "Gzip/Brotli", "status": "...", "value": "..." },
-    { "check": "HSTS", "status": "...", "value": "..." },
-    { "check": "X-Frame-Options", "status": "...", "value": "..." },
-    { "check": "Cache-Control", "status": "...", "value": "..." },
-    { "check": "Last-Modified / ETag", "status": "...", "value": "..." },
-    { "check": "Canonical", "status": "...", "value": "..." },
-    { "check": "H1 структура", "status": "...", "value": "..." },
-    { "check": "Meta description длина", "status": "...", "value": "..." },
-    { "check": "Open Graph", "status": "...", "value": "..." },
-    { "check": "Twitter Card", "status": "...", "value": "..." },
-    { "check": "Schema.org", "status": "...", "value": "..." },
-    { "check": "Mobile viewport", "status": "...", "value": "..." },
-    { "check": "JS-зависимость контента", "status": "...", "value": "..." },
-    { "check": "lang атрибут", "status": "...", "value": "..." },
-    { "check": "Яндекс.Метрика", "status": "...", "value": "..." },
-    { "check": "Google Analytics / GTM", "status": "...", "value": "..." },
-    { "check": "Яндекс.Вебмастер (верификация)", "status": "...", "value": "..." },
-    { "check": "Хлебные крошки", "status": "...", "value": "..." },
-    { "check": "E-E-A-T: О компании", "status": "...", "value": "..." },
-    { "check": "E-E-A-T: FAQ", "status": "...", "value": "..." },
-    { "check": "URL структура", "status": "...", "value": "..." },
-    { "check": "Сервер", "status": "info", "value": "..." },
-    { "check": "Дублирующиеся title", "status": "...", "value": "..." },
-    { "check": "Дублирующиеся description", "status": "...", "value": "..." },
-    { "check": "Скрытый контент (hidden text)", "status": "...", "value": "..." },
-    { "check": "Session ID в URL", "status": "...", "value": "..." },
-    { "check": "Качество анкоров внутренних ссылок", "status": "...", "value": "..." },
-    { "check": "Яндекс.Вебмастер (верификация)", "status": "...", "value": "..." },
-    { "check": "og:locale", "status": "...", "value": "..." },
-    { "check": "Навигационное меню", "status": "...", "value": "N пунктов" },
-    { "check": "Подвал (footer)", "status": "...", "value": "N ссылок, телефон: да/нет, адрес: да/нет" },
-    { "check": "www — доступность", "status": "...", "value": "301 → non-www / не отвечает / нет DNS" },
-    { "check": "Мусорные URL в sitemap", "status": "...", "value": "..." }
+    { "check": "HTTPS", "block": "2.1", "status": "ok|warning|critical|info", "value": "..." },
+    { "check": "www → non-www редирект", "block": "1.4", "status": "...", "value": "..." },
+    { "check": "http → https редирект", "block": "1.4", "status": "...", "value": "..." },
+    { "check": "robots.txt", "block": "1.1", "status": "...", "value": "..." },
+    { "check": "sitemap.xml", "block": "1.2", "status": "...", "value": "..." },
+    { "check": "Страница 404", "block": "1.5", "status": "...", "value": "..." },
+    { "check": "TTFB", "block": "2.3", "status": "...", "value": "..." },
+    { "check": "Gzip/Brotli", "block": "2.4", "status": "...", "value": "..." },
+    { "check": "HSTS", "block": "2.2", "status": "...", "value": "..." },
+    { "check": "X-Frame-Options", "block": "2.2", "status": "...", "value": "..." },
+    { "check": "Content-Security-Policy", "block": "2.2", "status": "...", "value": "..." },
+    { "check": "Cache-Control", "block": "2.2", "status": "...", "value": "..." },
+    { "check": "Last-Modified / ETag", "block": "2.2", "status": "...", "value": "..." },
+    { "check": "Canonical", "block": "5.3", "status": "...", "value": "..." },
+    { "check": "H1 структура", "block": "5.5", "status": "...", "value": "..." },
+    { "check": "Meta description длина", "block": "5.2", "status": "...", "value": "..." },
+    { "check": "Title длина", "block": "5.1", "status": "...", "value": "..." },
+    { "check": "Open Graph", "block": "7.1", "status": "...", "value": "..." },
+    { "check": "Twitter Card", "block": "7.2", "status": "...", "value": "..." },
+    { "check": "Schema.org", "block": "6.1", "status": "...", "value": "..." },
+    { "check": "Mobile viewport", "block": "4.1", "status": "...", "value": "..." },
+    { "check": "JS-зависимость контента", "block": "11.1", "status": "...", "value": "..." },
+    { "check": "lang атрибут", "block": "5.4", "status": "...", "value": "..." },
+    { "check": "Яндекс.Метрика", "block": "10.2", "status": "...", "value": "..." },
+    { "check": "Google Analytics / GTM", "block": "10.1", "status": "...", "value": "..." },
+    { "check": "Яндекс.Вебмастер (верификация)", "block": "10.2", "status": "...", "value": "..." },
+    { "check": "Google Search Console (верификация)", "block": "10.2", "status": "...", "value": "..." },
+    { "check": "Хлебные крошки", "block": "9.1", "status": "...", "value": "..." },
+    { "check": "E-E-A-T: О компании", "block": "8.2", "status": "...", "value": "..." },
+    { "check": "E-E-A-T: FAQ", "block": "8.2", "status": "...", "value": "..." },
+    { "check": "E-E-A-T: Контакты", "block": "8.2", "status": "...", "value": "..." },
+    { "check": "E-E-A-T: Политика конфиденциальности", "block": "8.3", "status": "...", "value": "..." },
+    { "check": "URL структура", "block": "5.8", "status": "...", "value": "..." },
+    { "check": "Сервер / CMS", "block": "2.2", "status": "info", "value": "..." },
+    { "check": "Дублирующиеся title", "block": "5.1", "status": "...", "value": "..." },
+    { "check": "Дублирующиеся description", "block": "5.2", "status": "...", "value": "..." },
+    { "check": "Скрытый контент (hidden text)", "block": "12.1", "status": "...", "value": "..." },
+    { "check": "Session ID в URL", "block": "5.8", "status": "...", "value": "..." },
+    { "check": "Качество анкоров внутренних ссылок", "block": "9.2", "status": "...", "value": "..." },
+    { "check": "og:locale", "block": "7.1", "status": "...", "value": "..." },
+    { "check": "Навигационное меню", "block": "9.1", "status": "...", "value": "N пунктов" },
+    { "check": "Подвал (footer)", "block": "9.1", "status": "...", "value": "N ссылок, телефон: да/нет, адрес: да/нет" },
+    { "check": "www — доступность", "block": "1.4", "status": "...", "value": "301 → non-www / не отвечает / нет DNS" },
+    { "check": "Мусорные URL в sitemap", "block": "1.2", "status": "...", "value": "..." },
+    { "check": "Tap targets (мобильные)", "block": "4.2", "status": "...", "value": "..." },
+    { "check": "Lighthouse Best Practices", "block": "2.2", "status": "...", "value": "..." }
   ]
 }
 ```
@@ -692,6 +850,8 @@ JSON.stringify((() => {
 Заполни корректными значениями. Оценки — по шкале 1–10. При отсутствии данных используй null.
 
 **Требование к `scoreDetails`**: поле обязательно для каждой категории в `scores`. Каждый элемент — конкретный факт с иконкой статуса (✅/🔴/⚠️), например: `"✅ title 52 симв."`, `"🔴 description 285 симв. (норма 70-160)"`. Не оставляй пустые массивы.
+
+**Поле `block` в каждой проверке** — номер раздела мастер-чеклиста (например `"2.2"` = «Блок 2 → HTTP-заголовки»). Используется для группировки в отчёте.
 
 ---
 
