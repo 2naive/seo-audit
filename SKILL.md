@@ -550,7 +550,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.5.1",
+  "skillVersion": "1.5.2",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -680,7 +680,7 @@ JSON.stringify((() => {
 
 ```markdown
 # SEO Аудит: [ДОМЕН]
-**Дата**: [YYYY-MM-DD HH:MM] | **Сайт**: [URL] | **Инструмент**: SEO Audit от Nedzelsky.pro
+**Дата**: [YYYY-MM-DD HH:MM] | **Сайт**: [URL] | **Инструмент**: itsoft.ru pharm-studio.ru nedzelsky.pro
 
 > [⚠️ Базовый режим / ✅ Полный режим Chrome]
 

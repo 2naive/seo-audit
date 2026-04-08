@@ -1,5 +1,10 @@
 # Changelog — SEO Audit Skill
 
+## [1.5.2] — 2026-04-08
+
+### Changed
+- **Подпись в подвале отчёта** — заменено "SEO Audit от Nedzelsky.pro" на "itsoft.ru · pharm-studio.ru · nedzelsky.pro" (три кликабельные ссылки) в HTML/PDF и в шаблоне Markdown.
+
 ## [1.5.1] — 2026-04-08
 
 ### Fixed

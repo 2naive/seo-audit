@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.5.1';
+const SKILL_VERSION = '1.5.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -369,7 +369,7 @@ function buildHTML(data) {
   })()}
 
   <div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:32px">
-    SEO Audit от Nedzelsky.pro · ${esc(url)} · ${esc(date)} · <span style="font-family:monospace">v${reportVersion}</span>
+    <a href="https://itsoft.ru" style="color:inherit;text-decoration:none">itsoft.ru</a> · <a href="https://pharm-studio.ru" style="color:inherit;text-decoration:none">pharm-studio.ru</a> · <a href="https://nedzelsky.pro" style="color:inherit;text-decoration:none">nedzelsky.pro</a> · ${esc(url)} · ${esc(date)} · <span style="font-family:monospace">v${reportVersion}</span>
   </div>
 
 </div>
