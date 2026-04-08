@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.8.0';
+const SKILL_VERSION = '1.8.1';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -822,40 +822,199 @@ const html = buildHTML(data);
 writeFileSync(htmlPath, html, 'utf8');
 console.log(`HTML → ${htmlPath}`);
 
-// Convert to PDF via Chrome headless
-// Windows + Claude Chrome Extension caveat: chrome.exe запущенный без --user-data-dir
-// конфликтует с уже работающим Extension и --headless не активируется. Решение —
-// изолированный временный профиль + cwd в outputDir + относительный путь к PDF.
-const chrome = findChrome();
-if (chrome) {
+// ── Convert to PDF via Chrome headless + CDP WebSocket ─────────────────────
+// Why CDP: на Windows когда активен Claude Chrome Extension, обычный
+// `chrome --headless --print-to-pdf` молча падает (chrome.exe видит
+// существующий main process через Process Singleton mechanism и подсасывает
+// к нему вместо запуска отдельной headless instance, --user-data-dir не
+// помогает). А `--print-to-pdf` несовместимо с `--remote-debugging-port`.
+// Решение — запустить Chrome с --remote-debugging-port (это обходит
+// Singleton), затем через WebSocket вызвать Page.printToPDF из CDP.
+//
+// Минимальный WebSocket клиент написан с нуля через http+net+crypto,
+// без зависимостей. Lighthouse использует тот же подход (chrome-launcher).
+async function generatePDF(chrome, htmlFilePath, pdfOutPath) {
+  const { spawn } = require('child_process');
+  const http = require('http');
+  const net = require('net');
+  const cryptoMod = require('crypto');
   const os = require('os');
   const path = require('path');
-  const { mkdtempSync, rmSync, unlinkSync } = require('fs');
-  const tmpProfile = mkdtempSync(path.join(os.tmpdir(), 'chr-pdf-'));
-  const pdfRel  = `${baseName}.pdf`;
-  // Удали старый PDF чтобы Chrome точно создал свежий
-  try { if (existsSync(pdfPath)) unlinkSync(pdfPath); } catch {}
-  try {
-    // cwd: outputDir → относительные пути работают на Windows
-    // --user-data-dir изолированный → не конфликтует с Claude Chrome Extension
-    const cmd = `"${chrome}" --headless=new --disable-gpu --no-sandbox --user-data-dir="${tmpProfile}" --no-first-run --no-default-browser-check --print-to-pdf="${pdfRel}" --print-to-pdf-no-header "file:///${htmlPath.replace(/\\/g, '/')}"`;
-    execSync(cmd, { stdio: 'pipe', timeout: 60_000, cwd: outputDir });
-    // Chrome может писать асинхронно — дождись до 5 секунд
-    const deadline = Date.now() + 5000;
-    while (!existsSync(pdfPath) && Date.now() < deadline) {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
-    }
-    if (existsSync(pdfPath)) {
-      console.log(`PDF  → ${pdfPath}`);
-    } else {
-      console.warn('PDF not found after Chrome completed — check that Claude Chrome Extension is disconnected or chrome --user-data-dir works.');
-    }
-  } catch (e) {
-    console.error('PDF generation failed:', e.message);
-    console.log('HTML report is still available.');
-  } finally {
+  const { mkdtempSync, rmSync, unlinkSync, writeFileSync, statSync } = require('fs');
+
+  try { if (existsSync(pdfOutPath)) unlinkSync(pdfOutPath); } catch {}
+
+  const tmpProfile = mkdtempSync(path.join(os.tmpdir(), 'chr-cdp-'));
+  const port = 9222 + Math.floor(Math.random() * 1000);
+  const fileUrl = 'file:///' + htmlFilePath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+  const child = spawn(chrome, [
+    '--headless=new',
+    '--disable-gpu',
+    '--no-sandbox',
+    '--user-data-dir=' + tmpProfile,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-extensions',
+    '--remote-debugging-port=' + port,
+    fileUrl,
+  ], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
+    windowsHide: true,
+  });
+  child.unref();
+
+  function fetchJSON(p) {
+    return new Promise((resolve, reject) => {
+      http.get(`http://127.0.0.1:${port}${p}`, res => {
+        let body = '';
+        res.on('data', d => body += d);
+        res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+      }).on('error', reject);
+    });
+  }
+
+  function cleanup() {
+    try { child.kill(); } catch {}
     try { rmSync(tmpProfile, { recursive: true, force: true }); } catch {}
   }
+
+  // Wait for Chrome debug port (up to 15s)
+  let ready = false;
+  for (let i = 0; i < 60; i++) {
+    try { await fetchJSON('/json/version'); ready = true; break; } catch {}
+    await new Promise(r => setTimeout(r, 250));
+  }
+  if (!ready) { cleanup(); throw new Error('Chrome debug port did not open'); }
+
+  // Find target page (the one we opened with file URL)
+  const targets = await fetchJSON('/json/list');
+  const target = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
+  if (!target) { cleanup(); throw new Error('No page target found'); }
+
+  // Minimal WebSocket client for CDP
+  function wsConnect(wsUrl) {
+    return new Promise((resolve, reject) => {
+      const u = new URL(wsUrl);
+      const key = cryptoMod.randomBytes(16).toString('base64');
+      const sock = net.connect(u.port, u.hostname);
+      let buf = Buffer.alloc(0);
+      let upgraded = false;
+      const handlers = new Map();
+      let nextId = 1;
+
+      sock.on('connect', () => {
+        sock.write(
+          `GET ${u.pathname}${u.search} HTTP/1.1\r\n` +
+          `Host: ${u.hostname}:${u.port}\r\n` +
+          `Upgrade: websocket\r\n` +
+          `Connection: Upgrade\r\n` +
+          `Sec-WebSocket-Key: ${key}\r\n` +
+          `Sec-WebSocket-Version: 13\r\n\r\n`
+        );
+      });
+
+      sock.on('data', d => {
+        buf = Buffer.concat([buf, d]);
+        if (!upgraded) {
+          const idx = buf.indexOf('\r\n\r\n');
+          if (idx >= 0) {
+            const headers = buf.slice(0, idx).toString();
+            if (!headers.includes('101')) return reject(new Error('WS upgrade failed'));
+            buf = buf.slice(idx + 4);
+            upgraded = true;
+            resolve(api);
+          } else return;
+        }
+        // Frame parsing (server→client, no mask, supports fragmented payloads)
+        while (buf.length >= 2) {
+          const opcode = buf[0] & 0x0f;
+          let len = buf[1] & 0x7f;
+          let off = 2;
+          if (len === 126) { if (buf.length < 4) return; len = buf.readUInt16BE(2); off = 4; }
+          else if (len === 127) { if (buf.length < 10) return; len = Number(buf.readBigUInt64BE(2)); off = 10; }
+          if (buf.length < off + len) return;
+          const payload = buf.slice(off, off + len).toString('utf8');
+          buf = buf.slice(off + len);
+          if (opcode === 1) {
+            try {
+              const msg = JSON.parse(payload);
+              if (msg.id && handlers.has(msg.id)) {
+                const cb = handlers.get(msg.id);
+                handlers.delete(msg.id);
+                cb(msg);
+              }
+            } catch {}
+          }
+        }
+      });
+
+      sock.on('error', reject);
+
+      function sendFrame(text) {
+        const payload = Buffer.from(text);
+        const mask = cryptoMod.randomBytes(4);
+        const len = payload.length;
+        let header;
+        if (len < 126) {
+          header = Buffer.from([0x81, 0x80 | len]);
+        } else if (len < 65536) {
+          header = Buffer.alloc(4);
+          header[0] = 0x81; header[1] = 0x80 | 126; header.writeUInt16BE(len, 2);
+        } else {
+          header = Buffer.alloc(10);
+          header[0] = 0x81; header[1] = 0x80 | 127; header.writeBigUInt64BE(BigInt(len), 2);
+        }
+        const masked = Buffer.alloc(len);
+        for (let i = 0; i < len; i++) masked[i] = payload[i] ^ mask[i & 3];
+        sock.write(Buffer.concat([header, mask, masked]));
+      }
+
+      const api = {
+        send(method, params = {}) {
+          return new Promise(res => {
+            const id = nextId++;
+            handlers.set(id, m => res(m.result || m.error));
+            sendFrame(JSON.stringify({ id, method, params }));
+          });
+        },
+        close() { try { sock.end(); } catch {} },
+      };
+    });
+  }
+
+  let ws;
+  try {
+    ws = await wsConnect(target.webSocketDebuggerUrl);
+    await ws.send('Page.enable');
+    // Дать странице время отрендериться (картинки, шрифты, base64 ассеты)
+    await new Promise(r => setTimeout(r, 2500));
+    const result = await ws.send('Page.printToPDF', {
+      printBackground: true,
+      preferCSSPageSize: true,
+      displayHeaderFooter: false,
+    });
+    if (!result || !result.data) {
+      throw new Error('Page.printToPDF returned no data: ' + JSON.stringify(result).slice(0, 200));
+    }
+    writeFileSync(pdfOutPath, Buffer.from(result.data, 'base64'));
+    return statSync(pdfOutPath).size;
+  } finally {
+    if (ws) ws.close();
+    cleanup();
+  }
+}
+
+// Запуск PDF generation
+const chrome = findChrome();
+if (chrome) {
+  generatePDF(chrome, htmlPath, pdfPath)
+    .then(size => console.log(`PDF  → ${pdfPath} (${Math.round(size / 1024)} KB)`))
+    .catch(e => {
+      console.error('PDF generation failed:', e.message);
+      console.log('HTML report is still available — open it in a browser.');
+    });
 } else {
   console.warn('Chrome not found — PDF skipped. Install Chrome or add it to PATH.');
 }

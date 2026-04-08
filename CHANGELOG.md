@@ -1,5 +1,38 @@
 # Changelog — SEO Audit Skill
 
+## [1.8.1] — 2026-04-09
+
+### Fixed — PDF generation работает при активном Claude Chrome Extension
+
+**Корневая причина** (диагностика):
+- На Windows когда работает Claude Chrome Extension, обычный `chrome.exe --headless --print-to-pdf` молча падает (exit 0, файл не создан, `lockfile: Device or resource busy`).
+- Process Singleton mechanism Chrome: `chrome.exe` видит существующий main process и выводит «Opening in existing browser session» — подсасывает к нему вместо запуска изолированной headless instance.
+- `--user-data-dir=$(mktemp -d)` НЕ помогает обойти Singleton (вопреки распространённому совету).
+- Только `--remote-debugging-port=N` обходит Singleton — но `--print-to-pdf` несовместимо с debug port (флаги взаимоисключающие).
+
+**Решение — CDP через WebSocket** (как в `chrome-launcher`/Lighthouse):
+1. `spawn` Chrome с `--remote-debugging-port=N`, `detached: true`, `child.unref()` (наследование handles от родителя ломает Singleton bypass)
+2. Polling `GET http://127.0.0.1:N/json/version` до готовности (до 15 секунд)
+3. `GET /json/list` — получить `webSocketDebuggerUrl` для page target
+4. WebSocket handshake (HTTP Upgrade с `Sec-WebSocket-Key`)
+5. Отправка `Page.enable` через WebSocket frame (с маскированием от клиента)
+6. Пауза 2.5 сек для рендера (картинки, шрифты, base64 ассеты)
+7. `Page.printToPDF` через CDP — получаем base64 в response
+8. Сохранение через `Buffer.from(data, 'base64')`
+9. Cleanup: `child.kill()` + `rmSync` временного профиля
+
+**Реализация**:
+- Минимальный WebSocket клиент написан с нуля через `http` + `net` + `crypto` — без npm-зависимостей (~100 строк)
+- Поддерживает фрагментированные frames (7/16/64-bit length)
+- Маскирование payload от клиента к серверу (требование RFC 6455)
+- Обработка только text frames (opcode 1) — достаточно для CDP
+
+**Тест**: PDF 3.4 MB сгенерирован при активном Claude Chrome Extension в текущей сессии. Время: ~5 секунд (включая запуск Chrome, навигацию, рендер, печать).
+
+### Changed
+- `generate-report.js`: функция `generatePDF()` async, использует CDP вместо `--print-to-pdf` флага
+- Удалено известное ограничение из v1.8.0 «PDF не работает при активном Extension» — теперь работает
+
 ## [1.8.0] — 2026-04-09 — Клиентская вёрстка отчёта
 
 Третий и финальный релиз серии переработки `/seo-audit` под клиентский отчёт. После v1.6 (фундамент схемы) и v1.7 (расширение сбора) — теперь полная переработка вёрстки HTML/PDF.
