@@ -1,5 +1,27 @@
 # Changelog — SEO Audit Skill
 
+## [1.7.1] — 2026-04-08
+
+### Fixed (по результатам тестового аудита maxilac.ru с v1.7.0)
+
+- **21 новое поле сбора v1.7.0 не попадало в JSON** — данные собирались агентом через JS-скрипт, но не было указания куда их класть в финальном JSON. Расширена `pages[].metrics`: добавлены `domSize`, `domDepth`, `textHtmlRatio`, `semanticTags`, `first100WordsHasH1Keyword`, `hasFavicon`, `hasCookieConsent`, `aeoReadiness`, `fontDisplay`, `formsHttps`, `protocolRelativeCount`, `closeTapTargets`, `bodyTextLen`, `imgsTotal`, `imgsNoAlt`, `imgsBroken`, `h2Count`, `h3Count`. Добавлено новое верхнеуровневое поле `siteData`: `llmsTxt`, `aiCrawlers`, `hreflang`, `http2`, `mixedContent`, `pagination`, `orphanPages`.
+
+- **Headless Chrome падает молча на Windows когда запущен Claude Chrome Extension** — корневая причина: Extension занимает процессную группу, и `chrome.exe --headless` открывается как обычное окно вместо headless. Файл создаётся пустым с exit 0. Решение: десктоп-скриншот теперь делается через **второй запуск Lighthouse с `--preset=desktop`**, оттуда извлекается `fullPageScreenshot` (1350×940 viewport) в `desktop-*.jpg`. Это единственный надёжный способ получить уникальный десктопный скриншот в этой среде.
+
+### Changed
+
+- **Шаг 2.1** — упрощён, десктоп-скриншот отложен до 2.3
+- **Шаг 2.3** — теперь делает ДВА запуска Lighthouse:
+  1. mobile (как было) — `lighthouse-{domain}-{datetime}.json` + `mobile-*.jpg`
+  2. desktop — `lighthouse-desktop-{domain}-{datetime}.json` + `desktop-*.jpg` (с `--preset=desktop --only-categories=performance`)
+- **Шаг 2.6** — валидация принимает JPEG (magic bytes `ffd8ff`) для десктопа, минимальный размер снижен с 50KB до 30KB (Lighthouse JPEG обычно 30–200KB), MD5-проверка остаётся.
+- **screenshotPaths.desktop** в JSON-схеме теперь `.jpg` вместо `.png`.
+
+### Notes
+
+- Lighthouse desktop preset запускает только `performance` категорию (не нужны полные SEO/A11y данные второй раз) — это быстрее и меньше нагрузки.
+- В отчёте теперь оба скриншота — JPEG, что снижает размер HTML/PDF.
+
 ## [1.7.0] — 2026-04-08
 
 ### Added — расширение сбора данных по мастер-чеклисту

@@ -93,8 +93,8 @@ REPORT_MD="${OUTPUT_DIR}/${REPORT_BASE}.md"
 - `${OUTPUT_DIR}/${REPORT_BASE}.html`  (генерируется через generate-report.js)
 - `${OUTPUT_DIR}/${REPORT_BASE}.pdf`   (генерируется через generate-report.js)
 - `${OUTPUT_DIR}/report-data-${DOMAIN}-${DATETIME}.json`
-- `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png`
-- `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg`  (извлекается из Lighthouse JSON)
+- `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg`  (Lighthouse desktop preset, шаг 2.3)
+- `${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg`   (Lighthouse mobile final-screenshot, шаг 2.3)
 
 **Важно**: никогда не используй относительные пути `seo-audit-output/...` — только абсолютные через `${OUTPUT_DIR}/...`.
 
@@ -284,41 +284,18 @@ curl -s "$ARGUMENTS/sitemap.xml" | grep -oP '(?<=<loc>)[^<]+' | head -50 > /tmp/
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
-**Десктоп-скриншот делается через локальный headless Chrome CLI**, не через `mcp__claude-in-chrome__computer`. Причина: MCP-инструмент возвращает изображение только в контекст LLM, без доступа к raw-байтам, которые можно записать в файл. Поэтому единственный надёжный способ — запустить headless Chrome с **изолированным временным профилем**, чтобы избежать контаминации (пример: дефолтный профиль может открывать стартовую страницу другого сайта вместо `$ARGUMENTS`).
+**Десктоп-скриншот** делается через **отдельный запуск Lighthouse с `--preset=desktop`**. Причина: `mcp__claude-in-chrome__computer` возвращает изображение только в контекст LLM (raw-байты недоступны для записи через Write); локальный headless Chrome с `--screenshot=` молча падает на Windows когда уже запущен Claude Chrome Extension (тот занимает процессную группу). Lighthouse desktop preset — единственный надёжный способ получить уникальный десктопный скриншот в этой среде.
 
 **⛔ ЗАПРЕЩЕНО**:
-- Использовать Lighthouse `final-screenshot` для десктопа (Lighthouse снимает только мобильный viewport 412px)
-- Использовать headless Chrome без `--user-data-dir=$(mktemp -d)` (контаминация дефолтным профилем приведёт к скриншоту чужого сайта)
+- Использовать Lighthouse mobile `final-screenshot` для десктопа (это мобильный viewport 412px — будет идентичен `mobile-*.jpg`)
+- Полагаться на headless Chrome `--screenshot=` — на Windows + Claude Extension это не работает
 - Переименовывать существующий файл из предыдущего аудита
 
-1. **Десктоп-скриншот через headless Chrome с изолированным профилем**:
+1. **Десктоп-скриншот через Lighthouse desktop preset**:
 
-   ⚠️ **Windows-специфика**: headless Chrome НЕ принимает абсолютные Windows-пути в `--screenshot=` (ни `C:\...`, ни `C:/...`, ни `/c/...`). Файл создаётся пустым с exit 0. Единственный надёжный способ — `cd` в целевую директорию и относительное имя файла:
+   Этот шаг ОТЛОЖЕН до шага 2.3 — там запускается Lighthouse мобильный, а сразу после — второй запуск с `--preset=desktop`. См. шаг 2.3.
 
-   ```bash
-   CHROME_BIN=$(ls "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe" /usr/bin/google-chrome 2>/dev/null | head -1)
-   FRESH_PROFILE=$(mktemp -d)
-   DESKTOP_FILE="desktop-${DOMAIN}-${DATETIME}.png"
-   # Перед снятием — удалить файл если уже существует (защита от reuse старого файла)
-   rm -f "${OUTPUT_DIR}/${DESKTOP_FILE}"
-   # ОБЯЗАТЕЛЬНО cd в OUTPUT_DIR + относительный путь к файлу — иначе Chrome молча падает на Windows
-   ( cd "$OUTPUT_DIR" && "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
-     --user-data-dir="$FRESH_PROFILE" \
-     --no-first-run --no-default-browser-check \
-     --hide-scrollbars \
-     --window-size=1440,900 \
-     --screenshot="$DESKTOP_FILE" \
-     "$ARGUMENTS" 2>&1 | tail -5 )
-   rm -rf "$FRESH_PROFILE"
-   ls -lh "${OUTPUT_DIR}/${DESKTOP_FILE}"
-   ```
-
-   **Ключевые требования**:
-   - `--user-data-dir=$(mktemp -d)` — свежий пустой профиль, не подхватит чужую стартовую страницу
-   - `--no-first-run --no-default-browser-check` — не показывать диалоги первого запуска
-   - URL `$ARGUMENTS` передаётся последним аргументом — Chrome принудительно навигируется туда
-   - **`cd "$OUTPUT_DIR"` + относительное имя файла** — обязательно для Windows
-   - `rm -f` перед — гарантирует что в случае ошибки файл будет отсутствовать (а не остаться от прошлого аудита)
+   На этом этапе (2.1) только убедись что вкладка с `$ARGUMENTS` активна и работает (для шага 2 — JS-сборщик).
 
    ⚠️ **Node.js на Windows**: внутри `node -e` всегда используй пути в формате `C:/Users/...` (forward slashes с буквой диска). НЕ `/c/Users/...` (Node не интерпретирует msys-префикс) и НЕ `C:\Users\...` (бэкслеши ломают эскейпинг в bash).
 
@@ -562,6 +539,39 @@ if (shot) {
 "
 ```
 
+**Второй запуск Lighthouse — desktop preset (для десктопного скриншота)**:
+```bash
+lighthouse "$ARGUMENTS" \
+  --output json \
+  --preset=desktop \
+  --chrome-flags="--headless=new" \
+  --only-categories=performance \
+  --output-path "${OUTPUT_DIR}/lighthouse-desktop-${DOMAIN}-${DATETIME}.json" \
+  --quiet 2>/dev/null
+```
+
+**Извлечение десктопного скриншота** из второго Lighthouse JSON (viewport 1350×940):
+```bash
+node -e "
+const fs = require('fs');
+const lh = JSON.parse(fs.readFileSync('${OUTPUT_DIR}/lighthouse-desktop-${DOMAIN}-${DATETIME}.json', 'utf8'));
+// Lighthouse desktop preset кладёт большой скриншот в fullPageScreenshot или final-screenshot
+const fullShot = lh.fullPageScreenshot?.screenshot?.data;
+const finalShot = lh.audits['final-screenshot']?.details?.data;
+const shot = fullShot || finalShot;
+if (shot) {
+  const b64 = shot.replace(/^data:image\/[^;]+;base64,/, '');
+  fs.writeFileSync('${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg', Buffer.from(b64, 'base64'));
+  console.log('Desktop screenshot saved:', '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg', '(' + Buffer.from(b64,'base64').length + ' bytes)');
+} else {
+  console.error('FAIL: ни fullPageScreenshot ни final-screenshot не найдены в desktop Lighthouse JSON');
+  process.exit(1);
+}
+"
+```
+
+Десктоп-файл сохраняется как `.jpg` (Lighthouse отдаёт JPEG). Это **отличается** от мобильного по содержимому: viewport другой (1350×940 vs 412×823), сайт рендерится в десктопной версии. Валидация в шаге 2.6 проверит уникальность через MD5.
+
 ### 2.6 Финальная валидация скриншотов (ОБЯЗАТЕЛЬНО)
 
 **Это контрольная точка перед Фазой 3.** Запускается после того как desktop (шаг 2.1) и mobile (шаг 2.3) сохранены. Запрещает любые попытки обойти проверки расширением файла или подменой источника.
@@ -570,14 +580,14 @@ if (shot) {
 node -e "
 const fs = require('fs');
 const crypto = require('crypto');
-const desktopPath  = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png';
+const desktopPath  = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg';
 const mobilePath   = '${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg';
 const lighthouseJson = '${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json';
 
-// 1. Десктоп должен существовать ИМЕННО как .png
+// 1. Десктоп должен существовать
 if (!fs.existsSync(desktopPath)) {
   console.error('FAIL: десктоп-скриншот не найден по пути ' + desktopPath);
-  console.error('Десктоп должен быть сохранён через headless Chrome CLI с --user-data-dir=\$(mktemp -d) (шаг 2.1).');
+  console.error('Десктоп должен быть получен через второй запуск Lighthouse с --preset=desktop (шаг 2.3).');
   process.exit(1);
 }
 
@@ -590,43 +600,43 @@ const referenceTime = fs.existsSync(lighthouseJson)
   : (fs.existsSync(mobilePath) ? fs.statSync(mobilePath).mtimeMs : Date.now() - 600000);
 if (dStat.mtimeMs < referenceTime - 1000) {
   console.error('FAIL: ' + desktopPath + ' имеет mtime ' + new Date(dStat.mtimeMs).toISOString());
-  console.error('Это раньше чем lighthouse JSON / mobile-screenshot этой сессии (' + new Date(referenceTime).toISOString() + ').');
-  console.error('Файл остался от ПРЕДЫДУЩЕГО аудита и не был перезаписан. Скорее всего headless Chrome упал или подхватил чужой профиль.');
-  console.error('Удали файл и пересними десктоп через headless Chrome с --user-data-dir=\$(mktemp -d) (см. шаг 2.1).');
+  console.error('Это раньше чем mobile lighthouse JSON этой сессии (' + new Date(referenceTime).toISOString() + ').');
+  console.error('Файл остался от ПРЕДЫДУЩЕГО аудита. Удали и пересними через шаг 2.3.');
   process.exit(1);
 }
 
-// 3. Десктоп — настоящий PNG
-const isPNG = dBuf[0]===0x89 && dBuf[1]===0x50 && dBuf[2]===0x4e && dBuf[3]===0x47;
-if (!isPNG) {
-  console.error('FAIL: ' + desktopPath + ' имеет magic bytes ' + dBuf.slice(0,4).toString('hex') + ', не PNG (89504e47).');
+// 3. Десктоп — JPEG (Lighthouse desktop preset отдаёт JPEG)
+const isJPEG = dBuf[0]===0xff && dBuf[1]===0xd8 && dBuf[2]===0xff;
+const isPNG  = dBuf[0]===0x89 && dBuf[1]===0x50 && dBuf[2]===0x4e && dBuf[3]===0x47;
+if (!isJPEG && !isPNG) {
+  console.error('FAIL: ' + desktopPath + ' имеет magic bytes ' + dBuf.slice(0,4).toString('hex') + ', не JPEG (ffd8ff) и не PNG (89504e47).');
   process.exit(1);
 }
 
-// 4. Десктоп достаточно большой (1440×900 viewport → обычно > 50KB)
-if (dBuf.length < 50000) {
-  console.error('FAIL: десктоп-скриншот ' + dBuf.length + ' bytes < 50KB. Скорее всего headless Chrome не смог снять страницу.');
+// 4. Десктоп достаточно большой (Lighthouse desktop fullPageScreenshot обычно > 30KB)
+if (dBuf.length < 30000) {
+  console.error('FAIL: десктоп-скриншот ' + dBuf.length + ' bytes < 30KB. Lighthouse desktop preset не вернул fullPageScreenshot.');
   process.exit(1);
 }
 
-// 5. Если мобильный есть — сравнить MD5. Идентичные файлы = агент использовал один источник
+// 5. Если мобильный есть — сравнить MD5. Идентичные = агент использовал ту же мобильную картинку
 if (fs.existsSync(mobilePath)) {
   const mBuf = fs.readFileSync(mobilePath);
   const dHash = crypto.createHash('md5').update(dBuf).digest('hex');
   const mHash = crypto.createHash('md5').update(mBuf).digest('hex');
   if (dHash === mHash) {
     console.error('FAIL: desktop и mobile имеют одинаковый MD5 (' + dHash + ').');
-    console.error('Один источник для обоих — это нарушение. Пересними десктоп.');
+    console.error('Скорее всего ты использовал mobile final-screenshot для десктопа. Запусти ВТОРОЙ Lighthouse с --preset=desktop (шаг 2.3) и извлеки fullPageScreenshot из desktop JSON.');
     process.exit(1);
   }
-  console.log('OK: desktop ' + dBuf.length + 'B (PNG, MD5 ' + dHash.slice(0,8) + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile ' + mBuf.length + 'B (JPG, MD5 ' + mHash.slice(0,8) + ')');
+  console.log('OK: desktop ' + dBuf.length + 'B (' + (isPNG?'PNG':'JPEG') + ', MD5 ' + dHash.slice(0,8) + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile ' + mBuf.length + 'B (JPG, MD5 ' + mHash.slice(0,8) + ')');
 } else {
-  console.log('OK: desktop ' + dBuf.length + 'B (PNG, mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile отсутствует');
+  console.log('OK: desktop ' + dBuf.length + 'B (' + (isPNG?'PNG':'JPEG') + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile отсутствует');
 }
 "
 ```
 
-**Если этот скрипт упал** — НЕ продолжай к Фазе 3. Вернись к шагу 2.1 и пересними десктоп через `mcp__claude-in-chrome__computer`. Никаких обходных путей: расширение должно быть `.png`, источник — Chrome Extension, не Lighthouse.
+**Если этот скрипт упал** — НЕ продолжай к Фазе 3. Вернись к шагу 2.3 и убедись что второй Lighthouse `--preset=desktop` отработал и `fullPageScreenshot` извлечён в `desktop-*.jpg`.
 
 ### 2.4 Проверка дополнительных страниц
 Для 2–3 URL из sitemap — перейди через `mcp__claude-in-chrome__navigate` и повтори консольный скрипт из 2.1 через `mcp__claude-in-chrome__javascript_tool` (без скриншотов).
@@ -794,7 +804,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.7.0",
+  "skillVersion": "1.7.1",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -875,17 +885,44 @@ JSON.stringify((() => {
         "metaDesc": "...",
         "metaDescLen": 128,
         "h1": "...",
+        "h2Count": 7,
+        "h3Count": 0,
         "canonical": "...",
         "hasSchema": true,
         "schemaTypes": ["Organization", "WebSite"],
         "hasBreadcrumbs": false,
-        "hasOpenGraph": true
+        "hasOpenGraph": true,
+        "imgsTotal": 31,
+        "imgsNoAlt": 19,
+        "imgsBroken": 2,
+        "domSize": 1247,
+        "domDepth": 22,
+        "textHtmlRatio": 18,
+        "semanticTags": { "article": 0, "section": 5, "header": 1, "nav": 2, "main": 1, "aside": 0, "figure": 3 },
+        "first100WordsHasH1Keyword": true,
+        "hasFavicon": true,
+        "hasCookieConsent": false,
+        "aeoReadiness": { "firstParagraphWords": 42, "hasFaqSection": false },
+        "fontDisplay": [{ "family": "Roboto", "display": "swap" }],
+        "formsHttps": { "total": 1, "httpsActions": 1, "insecureActions": [] },
+        "protocolRelativeCount": 0,
+        "closeTapTargets": 0,
+        "bodyTextLen": 4521
       },
       "issues": [
         { "severity": "critical|warning|info|ok", "msg": "..." }
       ]
     }
   ],
+  "siteData": {
+    "llmsTxt": { "exists": false, "fullExists": false },
+    "aiCrawlers": { "blocked": [], "allowed": [], "notMentioned": ["GPTBot","ClaudeBot","PerplexityBot","Googlebot-Extended"] },
+    "hreflang": { "applicable": false, "tags": [], "issues": [] },
+    "http2": { "version": "HTTP/2", "http3": false },
+    "mixedContent": { "count": 0, "samples": [] },
+    "pagination": { "found": false, "issues": [] },
+    "orphanPages": { "found": [], "checkedAgainst": "main+nav+footer" }
+  },
   "scoreDetails": {
     "Мета-теги": ["✅ title 57 симв.", "🔴 description 276 симв. (норма 70-160)", "✅ canonical корректный"],
     "Структура контента": ["🔴 H1 отсутствует на главной", "✅ H2/H3 структура есть"],
@@ -918,8 +955,8 @@ JSON.stringify((() => {
     "bfcacheFailures": ["unload-listener", "cache-control-no-store"]
   },
   "screenshotPaths": {
-    "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png",  // PNG из Chrome Extension (шаг 2.1)
-    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"     // JPG из Lighthouse final-screenshot (шаг 2.3)
+    "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.jpg",  // JPG из Lighthouse --preset=desktop fullPageScreenshot (шаг 2.3)
+    "mobile": "${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg"     // JPG из Lighthouse mobile final-screenshot (шаг 2.3)
   },
   "technical": [
     { "check": "HTTPS", "block": "2.1", "status": "ok|warning|critical|info", "value": "..." },
@@ -1065,8 +1102,8 @@ node "${PROJECT_DIR}/.claude/skills/seo-audit/generate-report.js" "${REPORT_JSON
   seo-audit-output/${REPORT_BASE}.md          — Markdown
   seo-audit-output/${REPORT_BASE}.html        — HTML (открыть в браузере)
   seo-audit-output/${REPORT_BASE}.pdf         — PDF
-  seo-audit-output/desktop-${DOMAIN}-${DATETIME}.png — скриншот десктоп (Claude Chrome)
-  seo-audit-output/mobile-${DOMAIN}-${DATETIME}.jpg  — скриншот мобильный (из Lighthouse)
+  seo-audit-output/desktop-${DOMAIN}-${DATETIME}.jpg — скриншот десктоп (Lighthouse desktop preset)
+  seo-audit-output/mobile-${DOMAIN}-${DATETIME}.jpg  — скриншот мобильный (Lighthouse mobile)
 
 Топ-3 приоритетных исправления:
 1. [СРОЧНО, сложность: низкая] ...
