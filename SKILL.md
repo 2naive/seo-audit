@@ -17,18 +17,33 @@ agent: general-purpose
 
 **Перед любыми другими действиями** проверь доступность Chrome-интеграции.
 
-Выбери вкладку для аудита — **не создавай новую без необходимости**:
+**Цель — минимизировать визуальное вмешательство в работу пользователя.** НИКОГДА не создавай новую вкладку без крайней необходимости — это отвлекает пользователя.
+
+Выбери вкладку для аудита по строгому приоритету:
 
 1. Вызови `mcp__claude-in-chrome__tabs_context_mcp` — получи список открытых вкладок
-2. Выбери tabId по приоритету:
-   - **Приоритет 1**: вкладка с URL `about:blank` или `chrome://newtab/` — переиспользовать
-   - **Приоритет 2**: вкладка с тем же доменом что в `$ARGUMENTS` — переиспользовать
-   - **Приоритет 3**: если все вкладки содержат важный контент пользователя — только тогда создай новую через `mcp__claude-in-chrome__tabs_create_mcp`
+2. Выбери tabId по приоритету (строго сверху вниз):
+   - **Приоритет 1**: вкладка с `chrome://newtab/`, `chrome://new-tab-page/` — переиспользуй
+   - **Приоритет 2**: вкладка с тем же доменом что в `$ARGUMENTS` — переиспользуй
+   - **Приоритет 3**: вкладка с любым другим доменом, где `title` пустой или `"Untitled"` — переиспользуй
+   - **Приоритет 4** (только в крайнем случае): если ВСЕ вкладки содержат важный пользовательский контент — создай новую через `mcp__claude-in-chrome__tabs_create_mcp`
 3. Выполни `mcp__claude-in-chrome__navigate` с выбранным tabId и URL `$ARGUMENTS`
-4. Сохрани этот tabId — используй его во всех последующих шагах фазы 2
+4. Сохрани этот tabId — используй его во всех последующих шагах фазы 2 (НЕ создавай дополнительные вкладки)
 
-По завершении аудита (после генерации отчётов) — верни вкладку на `chrome://newtab/`:
-`mcp__claude-in-chrome__navigate` → tabId, url: `chrome://newtab/`
+### Завершение аудита — закрытие вкладки
+
+По завершении аудита (после генерации отчётов) — попытайся **закрыть** созданную вкладку, не оставляя её открытой:
+
+1. **Если вкладка была создана через `tabs_create_mcp` (Приоритет 4)** — закрой её через `mcp__claude-in-chrome__javascript_tool` с кодом:
+   ```javascript
+   window.close()
+   ```
+   Это работает для вкладок, открытых программно (extension).
+
+2. **Если вкладка была переиспользована (Приоритеты 1–3)** — верни её на `chrome://newtab/`:
+   ```
+   mcp__claude-in-chrome__navigate → tabId, url: chrome://newtab/
+   ```
 
 ⚠️ Не используй `about:blank` — `mcp__claude-in-chrome__navigate` отвергает такие URL.
 
@@ -481,7 +496,7 @@ lighthouse --version 2>/dev/null || npm install -g lighthouse
 ```bash
 lighthouse "$ARGUMENTS" \
   --output json \
-  --chrome-flags="--headless=new" \
+  --chrome-flags="--headless=new --disable-gpu --no-sandbox --window-position=-32000,-32000 --window-size=1,1" \
   --only-categories=seo,performance,accessibility,best-practices \
   --output-path "${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json" \
   --quiet 2>/dev/null
@@ -544,7 +559,7 @@ if (shot) {
 lighthouse "$ARGUMENTS" \
   --output json \
   --preset=desktop \
-  --chrome-flags="--headless=new" \
+  --chrome-flags="--headless=new --disable-gpu --no-sandbox --window-position=-32000,-32000 --window-size=1,1" \
   --only-categories=performance \
   --output-path "${OUTPUT_DIR}/lighthouse-desktop-${DOMAIN}-${DATETIME}.json" \
   --quiet 2>/dev/null
@@ -879,7 +894,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.8.3",
+  "skillVersion": "1.8.4",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,

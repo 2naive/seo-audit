@@ -1,5 +1,34 @@
 # Changelog — SEO Audit Skill
 
+## [1.8.4] — 2026-04-09 — Минимизация визуального вмешательства
+
+### Fixed — Chrome окна больше не отвлекают пользователя
+
+**Проблема:** При запуске аудита пользователь видит несколько вспышек Chrome-окон:
+1. Lighthouse mobile запускает свой Chrome (может мелькать)
+2. Lighthouse desktop preset — то же самое
+3. PDF generation через CDP — наш spawn Chrome
+4. Claude Chrome Extension создаёт новую вкладку через `tabs_create_mcp`
+5. Финальный navigate оставляет вкладку открытой на `chrome://newtab/`
+
+**Решение:**
+
+1. **PDF generation** (`generate-report.js`): добавлены флаги `--window-position=-32000,-32000`, `--window-size=1,1`, `--silent-launch` к spawn-команде Chrome. Это гарантирует что headless-окно (даже если `--headless=new` показывает badge) уйдёт за пределы экрана.
+
+2. **Lighthouse mobile** (Шаг 2.3): расширен `--chrome-flags`:
+   - `--headless=new --disable-gpu --no-sandbox --window-position=-32000,-32000 --window-size=1,1`
+
+3. **Lighthouse desktop preset** (Шаг 2.3): те же chrome-flags
+
+4. **Шаг 0 — приоритет переиспользования вкладок усилен**:
+   - Добавлен Приоритет 3: вкладки с пустым `title` или `"Untitled"` — переиспользовать
+   - Создание новой вкладки только в Приоритете 4 (крайний случай)
+   - Явная цель в начале раздела: «минимизировать визуальное вмешательство»
+
+5. **Завершение аудита — закрытие вкладки** (раньше только navigate):
+   - Если вкладка была создана через `tabs_create_mcp` → `window.close()` через `javascript_tool` (закроет программно созданную вкладку)
+   - Если переиспользована → `navigate` на `chrome://newtab/` (как раньше)
+
 ## [1.8.3] — 2026-04-09
 
 ### Fixed — десктоп-скриншот растягивался на несколько страниц PDF

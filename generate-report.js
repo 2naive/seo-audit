@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.8.3';
+const SKILL_VERSION = '1.8.4';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -911,6 +911,11 @@ async function generatePDF(chrome, htmlFilePath, pdfOutPath) {
     '--no-default-browser-check',
     '--disable-extensions',
     '--remote-debugging-port=' + port,
+    // Окно должно быть гарантированно скрыто (на случай если --headless=new
+    // на Windows всё равно показывает badge/окно): за пределами экрана + 1×1px
+    '--window-position=-32000,-32000',
+    '--window-size=1,1',
+    '--silent-launch',
     fileUrl,
   ], {
     stdio: ['ignore', 'pipe', 'pipe'],
