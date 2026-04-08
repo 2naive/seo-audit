@@ -1,5 +1,24 @@
 # Changelog — SEO Audit Skill
 
+## [1.6.1] — 2026-04-08
+
+### Fixed (по результатам тестового аудита maxilac.ru)
+
+- **`mcp__claude-in-chrome__javascript_tool` блокирует строки с PHPSESSID/JSESSIONID** — добавлено предупреждение в шаг 2.1: не возвращать `innerHTML` целиком из JS-сборщика. Переписаны проверки `hasYandexMetrika` и `hasGTM` через `querySelector` вместо `innerHTML.includes`, чтобы не получать `[BLOCKED: Cookie/query string data]`.
+- **Headless Chrome на Windows не принимает абсолютные пути в `--screenshot=`** (ни `C:/...`, ни `C:\...`, ни `/c/...` — файл создаётся пустым с exit 0). В шаг 2.1 добавлено обязательное `cd "$OUTPUT_DIR"` и относительное имя файла как единственный надёжный способ.
+- **Node.js на Windows не интерпретирует `/c/...` пути** (msys-ism не применяется). Добавлено явное правило: внутри `node -e` использовать только формат `C:/Users/...` (forward slashes с буквой диска).
+- **`mcp__claude-in-chrome__navigate` отвергает `about:blank`** — заменено на `chrome://newtab/` для возврата вкладки в финальном шаге.
+
+### Verified (тестовый запуск v1.6.0 на maxilac.ru)
+
+- Все 14 новых полей рекомендаций заполнены агентом 16/16 (100%)
+- `executiveSummary.grade` = "D" с осмысленным `headline` и `onePhrase`
+- `strengths[]` = 5, `risks[]` = 7 (правильный формат «последствие → причина»)
+- `coverage` корректный: 13 автоматических блоков, 7 manual
+- `pages[].template` и `pages[].metrics` заполнены для всех страниц
+- `technical[].block` = 54/54
+- `phase` распределение: 7 urgent / 8 month / 1 strategy
+
 ## [1.6.0] — 2026-04-08
 
 ### Added — расширение JSON-схемы (фундамент для клиентского отчёта)

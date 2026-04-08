@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.6.0';
+const SKILL_VERSION = '1.6.1';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
