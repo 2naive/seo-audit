@@ -1,5 +1,29 @@
 # Changelog — SEO Audit Skill
 
+## [1.7.3] — 2026-04-09
+
+### Fixed
+
+- **PDF generation падал с "PDF not found after Chrome completed"** — та же причина что у скриншотов до v1.7.1: `chrome.exe --headless` запущенный без `--user-data-dir` конфликтует с уже работающим Claude Chrome Extension, флаг headless не активируется, файл не создаётся. `generate-report.js` теперь:
+  - Создаёт временный профиль через `mkdtempSync(os.tmpdir(), 'chr-pdf-')`
+  - Запускает Chrome с `--user-data-dir=<temp>` + `--no-first-run` + `--no-default-browser-check`
+  - Использует `cwd: outputDir` + относительный путь к PDF (Windows-специфика)
+  - В `finally` удаляет временный профиль через `rmSync(..., {recursive:true, force:true})`
+  - Timeout увеличен с 30 до 60 секунд (большие отчёты требуют времени)
+
+- Тест: повторная генерация отчёта maxilac.ru дала PDF 3.2 MB (раньше 0 KB / отсутствие файла).
+
+### Verified (тестовый запуск v1.7.2 на maxilac.ru)
+
+- ✅ Lighthouse desktop отдал WEBP, файл сохранён как `desktop-*.webp` (155 KB)
+- ✅ Валидация 2.6 приняла WEBP magic bytes (52 49 46 46 ... 57 45 42 50)
+- ✅ Правило 11 применилось:
+  - HTTP/2 upgrade рекомендован (siteData.http2.version = HTTP/1.1)
+  - llms.txt + AI crawlers рекомендованы (notMentioned: 7 ботов)
+  - Cookie consent (152-ФЗ) рекомендован
+  - Semantic HTML рекомендован
+- 17 рекомендаций в отчёте (было 15 без Правила 11)
+
 ## [1.7.2] — 2026-04-08
 
 ### Fixed (по результатам теста v1.7.1 на maxilac.ru)

@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.7.2';
+const SKILL_VERSION = '1.7.3';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -406,14 +406,23 @@ writeFileSync(htmlPath, html, 'utf8');
 console.log(`HTML → ${htmlPath}`);
 
 // Convert to PDF via Chrome headless
+// Windows + Claude Chrome Extension caveat: chrome.exe запущенный без --user-data-dir
+// конфликтует с уже работающим Extension и --headless не активируется. Решение —
+// изолированный временный профиль + cwd в outputDir + относительный путь к PDF.
 const chrome = findChrome();
 if (chrome) {
+  const os = require('os');
+  const path = require('path');
+  const { mkdtempSync, rmSync } = require('fs');
+  const tmpProfile = mkdtempSync(path.join(os.tmpdir(), 'chr-pdf-'));
+  const pdfRel  = `${baseName}.pdf`;
+  const htmlRel = `${baseName}.html`;
   try {
-    const pdfFwd  = pdfPath.replace(/\\/g, '/');
-    const htmlFwd = htmlPath.replace(/\\/g, '/');
-    const cmd = `"${chrome}" --headless=new --disable-gpu --no-sandbox --print-to-pdf="${pdfFwd}" --print-to-pdf-no-header "file:///${htmlFwd}"`;
-    execSync(cmd, { stdio: 'pipe', timeout: 30_000 });
-    // Chrome may flush async — wait up to 5s for file to appear
+    // cwd: outputDir → относительные пути работают на Windows
+    // --user-data-dir изолированный → не конфликтует с Claude Chrome Extension
+    const cmd = `"${chrome}" --headless=new --disable-gpu --no-sandbox --user-data-dir="${tmpProfile}" --no-first-run --no-default-browser-check --print-to-pdf="${pdfRel}" --print-to-pdf-no-header "file:///${htmlPath.replace(/\\/g, '/')}"`;
+    execSync(cmd, { stdio: 'pipe', timeout: 60_000, cwd: outputDir });
+    // Chrome может писать асинхронно — дождись до 5 секунд
     const deadline = Date.now() + 5000;
     while (!existsSync(pdfPath) && Date.now() < deadline) {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
@@ -421,11 +430,13 @@ if (chrome) {
     if (existsSync(pdfPath)) {
       console.log(`PDF  → ${pdfPath}`);
     } else {
-      console.warn('PDF not found after Chrome completed — check Chrome permissions or disk space.');
+      console.warn('PDF not found after Chrome completed — check that Claude Chrome Extension is disconnected or chrome --user-data-dir works.');
     }
   } catch (e) {
     console.error('PDF generation failed:', e.message);
     console.log('HTML report is still available.');
+  } finally {
+    try { rmSync(tmpProfile, { recursive: true, force: true }); } catch {}
   }
 } else {
   console.warn('Chrome not found — PDF skipped. Install Chrome or add it to PATH.');
