@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.9.0';
+const SKILL_VERSION = '1.9.1';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -476,7 +476,7 @@ function buildHTML(data) {
       ${(lighthouse && lighthouse.available) ? `<li><a href="#lighthouse">Lighthouse — производительность</a></li>` : ''}
       ${recs.length ? `<li><a href="#roadmap">План действий — ${urgentRecs.length + monthRecs.length + strategyRecs.length} задач в 3 фазах</a></li>` : ''}
       ${recs.length ? `<li><a href="#recs">Детализация ${recs.length} рекомендаций</a></li>` : ''}
-      ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'страницы' : 'страниц'}</a></li>` : ''}
+      ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'типа страниц' : pages.length < 5 ? 'типов страниц' : 'типов страниц'}</a></li>` : ''}
       ${(technical && technical.length) ? `<li><a href="#technical">Технические проверки по блокам</a></li>` : ''}
       ${(desktopSrc || mobileSrc) ? `<li><a href="#screenshots">Скриншоты сайта</a></li>` : ''}
       ${(notChecked && notChecked.length) ? `<li><a href="#not-checked">Что не проверялось</a></li>` : ''}
@@ -502,6 +502,7 @@ function buildHTML(data) {
     const m = p.metrics || {};
     const issues = (p.issues || []).filter(i => i.severity !== 'ok');
     const tplLabel = templateLabels[p.template] || p.template || 'Страница';
+    const pt = p.pageType || {};
     const metricRow = (label, value, ok) => `
       <div class="page-metric ${ok === false ? 'bad' : ok === true ? 'good' : ''}">
         <span class="page-metric-label">${label}</span>
@@ -513,6 +514,11 @@ function buildHTML(data) {
         <div class="page-tpl">${esc(tplLabel)}</div>
         <a href="${esc(p.url)}" class="page-url">${esc(p.url.replace(/^https?:\/\/[^/]+/, '') || '/')}</a>
       </div>
+      ${pt.pattern ? `
+      <div class="page-type-info">
+        <span class="page-type-pattern">Pattern: <code>${esc(pt.pattern)}</code></span>
+        ${pt.matchedCount ? `<span class="page-type-count">${pt.matchedCount} ${pt.matchedCount === 1 ? 'страница этого типа' : pt.matchedCount < 5 ? 'страницы этого типа' : 'страниц этого типа'}</span>` : ''}
+      </div>` : ''}
       <div class="page-metrics">
         ${metricRow('Title', m.titleLen ? `${m.titleLen} симв.` : null, m.titleLen >= 30 && m.titleLen <= 60)}
         ${metricRow('Description', m.metaDescLen ? `${m.metaDescLen} симв.` : null, m.metaDescLen >= 70 && m.metaDescLen <= 160)}
@@ -531,10 +537,14 @@ function buildHTML(data) {
       </div>` : ''}
     </div>`;
   }
+  const pts = data.pageTypeStats;
   const pagesHtml = (pages && pages.length) ? `
   <div class="card" id="pages">
-    <h2>Анализ ключевых страниц</h2>
-    <p style="color:#475569;font-size:14px;margin-bottom:16px">Проверены ${pages.length} ${pages.length === 1 ? 'страница' : 'страниц'}.</p>
+    <h2>Анализ уникальных типов страниц</h2>
+    <p style="color:#475569;font-size:14px;margin-bottom:16px">
+      Проанализировано <strong>${pages.length}</strong> ${pages.length === 1 ? 'тип' : pages.length < 5 ? 'типа' : 'типов'} страниц${pts && pts.totalUrls ? ` из <strong>${pts.totalUrls}</strong> URL в sitemap` : ''}${pts && pts.totalTypes ? ` (всего уникальных типов: <strong>${pts.totalTypes}</strong>)` : ''}.
+      ${pts && pts.skippedTypes > 0 ? `<br><span style="color:#92400e">⚠ Пропущено ${pts.skippedTypes} ${pts.skippedTypes === 1 ? 'тип' : 'типов'} (лимит 20 на один аудит).</span>` : ''}
+    </p>
     <div class="pages-grid">${pages.map(p => pageCard(p)).join('')}</div>
   </div>` : '';
 
@@ -759,6 +769,9 @@ function buildHTML(data) {
   .page-card-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px; }
   .page-tpl { background: #eff6ff; color: #1e40af; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
   .page-url { font-family: monospace; font-size: 13px; color: #1e40af; text-decoration: none; }
+  .page-type-info { display: flex; gap: 16px; padding: 8px 0; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .page-type-pattern code { background: #f8fafc; padding: 2px 6px; border-radius: 3px; color: #1e40af; font-family: monospace; }
+  .page-type-count { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
   .page-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
   .page-metric { display: flex; justify-content: space-between; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
   .page-metric.good { background: #f0fdf4; }

@@ -292,6 +292,100 @@ curl -s "$ARGUMENTS/sitemap.xml" | grep -oP '(?<=<loc>)[^<]+' | head -50 > /tmp/
 - **Orphan candidates** = URL из sitemap, на которые НЕ ссылается ни главная, ни подвал, ни навигация (9.2.1)
 - Это эвристика: для полной проверки нужен краулер по всему сайту, но даже базовое сравнение с главной даёт ценные находки
 
+### 1.12 Категоризация страниц по типу шаблона (URL pattern)
+
+**Цель**: вместо случайного выбора 2-3 страниц для анализа в Фазе 2 — определить **уникальные типы шаблонов** на сайте и взять по одному представителю каждого типа. Лимит: **20 уникальных типов** на один аудит.
+
+Тип страницы определяется **по структуре URL**, не по контенту:
+- `/news/123` и `/news/456` — один тип «новость» (отличается только контент)
+- `/products/maxilac-baby` и `/products/maxilac-mini` — один тип «карточка товара»
+- `/about` и `/contacts` — два **разных** уникальных типа
+
+Алгоритм нормализации URL → pattern:
+
+```bash
+# Получить URL из sitemap (включая sitemap-index)
+SITEMAP_URLS=$(curl -s "$ARGUMENTS/sitemap.xml" | grep -oP '(?<=<loc>)[^<]+' | head -500)
+
+# Если sitemap — это index, получить URL из всех вложенных sitemap
+echo "$SITEMAP_URLS" | grep -E '\.xml(\.gz)?$' | head -5 | while read SUB; do
+  curl -s "$SUB" | grep -oP '(?<=<loc>)[^<]+' | head -200
+done > /tmp/all-urls.txt
+echo "$SITEMAP_URLS" | grep -vE '\.xml(\.gz)?$' >> /tmp/all-urls.txt
+
+# Категоризация через node — нормализация URL в pattern
+node -e "
+const fs = require('fs');
+const urls = fs.readFileSync('/tmp/all-urls.txt','utf8').split('\n').filter(Boolean);
+
+// Нормализация одного URL в шаблон
+function urlToPattern(url) {
+  let path;
+  try { path = new URL(url).pathname; }
+  catch { return null; }
+  // Trailing slash → нормализованный
+  if (path !== '/' && path.endsWith('/')) path = path.slice(0, -1);
+  return path
+    .split('/')
+    .map(seg => {
+      if (!seg) return seg;
+      // Чистый числовой ID: /products/123 → /products/{id}
+      if (/^\d+\$/.test(seg)) return '{id}';
+      // Дата вида 2026-04-09: /news/2026-04-09 → /news/{date}
+      if (/^\d{4}-\d{2}-\d{2}\$/.test(seg)) return '{date}';
+      // Slug — длинный сегмент с дефисами: /products/maxilac-baby-pro → /products/{slug}
+      if (seg.length >= 8 && /-/.test(seg) && /^[a-z0-9-_]+\$/i.test(seg)) return '{slug}';
+      // Кириллический slug
+      if (seg.length >= 8 && /-/.test(seg) && /[а-яё]/i.test(seg)) return '{slug}';
+      // UUID / hash
+      if (/^[a-f0-9]{8,}\$/i.test(seg)) return '{hash}';
+      // Расширения файлов оставить как есть
+      return seg;
+    })
+    .join('/') || '/';
+}
+
+// Группировка
+const groups = {};
+urls.forEach(u => {
+  const p = urlToPattern(u);
+  if (!p) return;
+  if (!groups[p]) groups[p] = { pattern: p, count: 0, examples: [] };
+  groups[p].count++;
+  if (groups[p].examples.length < 3) groups[p].examples.push(u);
+});
+
+// Сортировка: больше URL в группе = более важный тип
+const sorted = Object.values(groups).sort((a,b) => b.count - a.count);
+const totalTypes = sorted.length;
+const limited = sorted.slice(0, 20);
+
+console.log(JSON.stringify({
+  totalUrls: urls.length,
+  totalTypes,
+  analyzedTypes: limited.length,
+  skippedTypes: Math.max(0, totalTypes - 20),
+  types: limited.map(g => ({
+    pattern: g.pattern,
+    matchedCount: g.count,
+    sampleUrl: g.examples[0]
+  }))
+}, null, 2));
+"
+```
+
+**Результат** — массив до 20 объектов, каждый с `pattern`, `matchedCount`, `sampleUrl`. Сохрани этот результат — он будет использован в Фазе 2 (шаги 2.4 и 3) как `pageTypes[]` в JSON-схеме.
+
+**Если sitemap.xml недоступен** (404):
+- Используй внутренние ссылки с главной (собранные в Фазе 2.1 как `internalLinks`/`navMenuItems`)
+- Применяй ту же нормализацию
+- Лимит остаётся 20 типов
+
+**Особые случаи**:
+- Главная страница `/` — всегда уникальный тип, всегда включается первой
+- Если найдено `<= 5` типов (маленький сайт) — анализируй все
+- Если найдено `> 20` типов — анализируй первые 20 (по убыванию `matchedCount`), пропущенные перечисли в `notChecked[]` с указанием количества
+
 ---
 
 ## Фаза 2 — Браузерный анализ (Chrome)
@@ -680,8 +774,21 @@ if (fs.existsSync(mobilePath)) {
 
 **Если этот скрипт упал** — НЕ продолжай к Фазе 3. Вернись к шагу 2.3 и убедись что второй Lighthouse `--preset=desktop` отработал и `fullPageScreenshot` извлечён в `desktop-*.jpg`.
 
-### 2.4 Проверка дополнительных страниц
-Для 2–3 URL из sitemap — перейди через `mcp__claude-in-chrome__navigate` и повтори консольный скрипт из 2.1 через `mcp__claude-in-chrome__javascript_tool` (без скриншотов).
+### 2.4 Проверка уникальных типов страниц
+
+Используй результат **шага 1.12** (`pageTypes[]` с нормализованными URL-патернами). Для каждого типа из списка (до 20 штук, главная всегда первая) выполни:
+
+1. `mcp__claude-in-chrome__navigate` (тот же tabId) → `sampleUrl` типа
+2. Дождись загрузки
+3. Выполни тот же JS-сборщик из шага 2.1 через `mcp__claude-in-chrome__javascript_tool` — собери все метрики (title, h1, schema, badAnchors и т.д.)
+4. Сохрани результат как один объект в `pages[]` JSON-схемы со всеми полями `metrics{...}` + добавь:
+   - `pageType.pattern` — нормализованный URL pattern из шага 1.12
+   - `pageType.matchedCount` — сколько страниц этого типа найдено в sitemap
+   - `pageType.sampleUrl` — конкретный URL который был проанализирован
+
+**Скриншоты дополнительных страниц не делаются** — только главная имеет `desktop-*.webp` и `mobile-*.jpg`. Для остальных типов — только метрики.
+
+**Если шаг 1.12 не выполнен** (sitemap недоступен и нет внутренних ссылок) — fallback: проанализируй главную + 2 страницы из навигационного меню.
 
 ### 2.5 Проверка Schema.org (детальная)
 На главной проверь и валидируй Schema.org через `mcp__claude-in-chrome__javascript_tool`:
@@ -1111,7 +1218,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.9.0",
+  "skillVersion": "1.9.1",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1186,6 +1293,11 @@ JSON.stringify((() => {
     {
       "url": "...",
       "template": "home | category | service | article | contacts | faq | other",
+      "pageType": {
+        "pattern": "/products/{slug}",
+        "matchedCount": 47,
+        "sampleUrl": "https://example.com/products/some-product"
+      },
       "metrics": {
         "title": "...",
         "titleLen": 57,
@@ -1222,6 +1334,12 @@ JSON.stringify((() => {
       ]
     }
   ],
+  "pageTypeStats": {
+    "totalUrls": 156,
+    "totalTypes": 7,
+    "analyzedTypes": 7,
+    "skippedTypes": 0
+  },
   "siteData": {
     "llmsTxt": { "exists": false, "fullExists": false },
     "aiCrawlers": { "blocked": [], "allowed": [], "notMentioned": ["GPTBot","ClaudeBot","PerplexityBot","Googlebot-Extended"] },
