@@ -109,6 +109,7 @@ REPORT_MD="${OUTPUT_DIR}/${REPORT_BASE}.md"
 - Закрыты ли от индексации: поиск по сайту, страницы сортировки/фильтрации, корзина, личные кабинеты, версии для печати, PDF-файлы
 - Нет ли инструкций, которые случайно закрывают CSS/JS файлы (например, `Disallow: */?`)
 - Директива `Host:` корректна (без www, https)
+- **AI-краулеры** (1.1.8): не заблокированы ли `GPTBot`, `ClaudeBot`, `OAI-SearchBot`, `PerplexityBot`, `Googlebot-Extended`, `Bingbot`, `Applebot-Extended`, `CCBot`. Для большинства коммерческих сайтов их блокировка нежелательна — сайт исключается из обучающих выборок и AI-ответов. Зафиксируй какие найдены в `Disallow:` или `Allow:` явно.
 
 ### 1.2 sitemap.xml
 Получи `$ARGUMENTS/sitemap.xml` через WebFetch. Проверь:
@@ -139,11 +140,17 @@ curl -sI "http://${DOMAIN}" | grep -Ei "HTTP|Location" 2>/dev/null
 **⚠️ Важно:** если `www.${DOMAIN}` вообще не отвечает (connection refused / timeout) — это **Critical**: поисковики могут считать www и non-www разными сайтами, что влечёт дублирование или потерю части трафика. Фиксируй в отчёте как `status: "critical"`, `value: "www не отвечает совсем — нет DNS-записи или сервер не слушает"`.  
 Если http не редиректит на https — тоже **Critical** (утечка трафика).
 
-### 1.4 Проверка страницы 404
+### 1.4 Проверка страницы 404 + soft 404
 ```bash
+# HTTP-код несуществующей страницы
 curl -sI "$ARGUMENTS/this-page-does-not-exist-12345" | grep -Ei "HTTP" 2>/dev/null
+
+# Soft 404: страница может вернуть HTTP 200 но в теле «не найдено» — критично (1.5.2)
+curl -s "$ARGUMENTS/this-page-does-not-exist-12345" | grep -iE "(не\s*найден|page\s*not\s*found|404)" | head -3
 ```
-Проверь: сервер должен вернуть 404, а не 200 или редирект.
+Проверь:
+- Сервер должен вернуть 404, а не 200 или редирект
+- **Soft 404** — если код 200, но в теле есть «не найдено / Page Not Found / 404» — это critical, Google понижает такие страницы в индексе и тратит краулинговый бюджет
 
 ### 1.5 Raw HTML главной страницы
 Получи `$ARGUMENTS` через WebFetch (raw HTML до JS-рендеринга). Проверь:
@@ -200,6 +207,10 @@ curl -o /dev/null -s -w "DNS:%{time_namelookup}s Connect:%{time_connect}s TTFB:%
 # Сжатие gzip/brotli
 curl -sI -H "Accept-Encoding: gzip, br" "$ARGUMENTS" | grep -i "content-encoding" 2>/dev/null
 
+# HTTP/2 / HTTP/3 detection (3.5.1)
+curl -sI --http2 "$ARGUMENTS" 2>/dev/null | head -1   # ожидаем "HTTP/2 200"
+curl -sI --http3 "$ARGUMENTS" 2>/dev/null | head -1   # если поддерживается — "HTTP/3 200"
+
 # Cache-Control по типам ресурсов (HTML, CSS, JS, изображения)
 CSS_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=href=")[^"]+\.css[^"]*' | head -1) && [ -n "$CSS_URL" ] && curl -sI "${CSS_URL#/}" 2>/dev/null | grep -i "cache-control" || true
 JS_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=src=")[^"]+\.js[^"]*' | head -1) && [ -n "$JS_URL" ] && curl -sI "${JS_URL#/}" 2>/dev/null | grep -i "cache-control" || true
@@ -230,10 +241,41 @@ IMG_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=src=")[^"]+\.(jpg|png|webp|svg)[^
 ### 1.9 Дополнительные структурные проверки
 Для главной страницы через WebFetch проверь:
 - Идентификаторы сессий в URL: нет ли `?PHPSESSID=`, `?sid=`, `?session=` в ссылках (засоряют индекс)
-- Страницы пагинации: если есть `/page/`, `/p/` — проверь, что title/canonical не дублируют главную
+- Страницы пагинации: если есть `/page/`, `/p/`, `?page=` (13.3) — получи 1–2 такие страницы через WebFetch и проверь:
+  - Title и description не дублируют первую страницу (должно быть «Каталог — страница 2» или подобное)
+  - Canonical указывает **на саму себя** (страница 2), не на страницу 1
+  - Реализована через HTML `<a href>`, а не только JS-инфинити-скролл
 - HTML-карта сайта: проверь `/sitemap/`, `/map/`, `/html-sitemap` — нужна ли она
 - Страница «О компании»: если нашлась — получи её через WebFetch и проверь наличие: история компании, специализация, контактные данные, упоминание сотрудников/специалистов
 - Политика конфиденциальности: проверь наличие и актуальность (год в тексте)
+
+### 1.10 AI-эра: llms.txt и hreflang
+```bash
+# llms.txt — экспериментальный стандарт для AI-руководства (21.3.5)
+curl -sI "$ARGUMENTS/llms.txt" 2>/dev/null | head -1
+curl -sI "$ARGUMENTS/llms-full.txt" 2>/dev/null | head -1
+```
+- `llms.txt` (200) — присутствует, фиксируй как `info` (best practice для AI-эры)
+- 404 — фиксируй как `info`, не warning (стандарт ещё в драфте)
+
+**Hreflang** (Блок 16, применимо только если найден `<link rel="alternate" hreflang>` в шаге 1.5 raw HTML):
+- Если на сайте только `lang="ru"` и нет hreflang-тегов — пропусти Блок 16, отметь как «не применимо» в `coverage`
+- Если найдены hreflang — проверь:
+  - Двунаправленность: каждая локаль ссылается на все версии (включая `x-default`)
+  - Корректные ISO-коды (`ru-RU`, `en-US`)
+  - Hreflang не конфликтует с canonical
+  - Один метод реализации: HTML или sitemap, без смешивания
+
+### 1.11 Orphan pages (детектор)
+**Только если sitemap.xml доступен** — собери два множества и сравни:
+```bash
+# Получи список URL из sitemap (первые 50)
+curl -s "$ARGUMENTS/sitemap.xml" | grep -oP '(?<=<loc>)[^<]+' | head -50 > /tmp/sitemap-urls.txt
+# Получи внутренние ссылки с главной
+# (это уже собирается в шаге 2.1 как internalLinks/navMenuItems — используй эти данные)
+```
+- **Orphan candidates** = URL из sitemap, на которые НЕ ссылается ни главная, ни подвал, ни навигация (9.2.1)
+- Это эвристика: для полной проверки нужен краулер по всему сайту, но даже базовое сравнение с главной даёт ценные находки
 
 ---
 
@@ -341,11 +383,56 @@ JSON.stringify({
   publishDate: document.querySelector('time[datetime], meta[property="article:published_time"], meta[name="date"]')?.getAttribute('datetime') || document.querySelector('time[datetime]')?.dateTime,
   updateDate: document.querySelector('meta[property="article:modified_time"], time[itemprop="dateModified"]')?.content || document.querySelector('time[itemprop="dateModified"]')?.dateTime,
   authorName: document.querySelector('[itemprop="author"] [itemprop="name"], .author, [rel=author]')?.textContent?.trim(),
-  jsErrors: window.__seoErrors || []
+  jsErrors: window.__seoErrors || [],
+
+  // === v1.7.0: расширенный сбор по мастер-чеклисту ===
+
+  // DOM size + depth (3.5.4 — норма ≤1500 узлов, ≤32 уровня)
+  domSize: document.querySelectorAll('*').length,
+  domDepth: (() => { let max = 0; const walk = (el, d) => { if (d > max) max = d; [...el.children].forEach(c => walk(c, d+1)); }; walk(document.body, 0); return max; })(),
+
+  // Семантический HTML (17.3.6 — для GEO)
+  semanticTags: {
+    article: document.querySelectorAll('article').length,
+    section: document.querySelectorAll('section').length,
+    header: document.querySelectorAll('header').length,
+    nav: document.querySelectorAll('nav').length,
+    main: document.querySelectorAll('main').length,
+    aside: document.querySelectorAll('aside').length,
+    figure: document.querySelectorAll('figure').length
+  },
+
+  // Text/HTML ratio (21.3.3 — норма ≥15%)
+  textHtmlRatio: (() => { const t = document.body.innerText.length; const h = document.documentElement.outerHTML.length; return h > 0 ? Math.round(t/h*100) : 0; })(),
+
+  // Font-display (3.5.2 — должен быть swap или optional)
+  fontDisplay: [...(document.fonts || [])].slice(0,10).map(f => ({ family: f.family, display: f.display, status: f.status })),
+
+  // Формы — все ли action ведут на HTTPS (2.5.2)
+  formsHttps: (() => { const forms = [...document.forms]; return { total: forms.length, httpsActions: forms.filter(f => !f.action || f.action.startsWith('https://') || f.action.startsWith('/')).length, insecureActions: forms.filter(f => f.action && f.action.startsWith('http://')).map(f => f.action).slice(0,3) }; })(),
+
+  // Protocol-relative URLs (2.5.3 — //example.com небезопасно)
+  protocolRelativeCount: [...document.querySelectorAll('[src^="//"], [href^="//"]')].length,
+
+  // Cookie consent banner heuristic (13.6.2)
+  hasCookieConsent: !!document.querySelector('[class*="cookie" i], [id*="cookie" i], [class*="consent" i], [id*="consent" i], [class*="gdpr" i]'),
+
+  // AEO readiness (17.2.1, 17.2.2): первые 1-2 абзаца ≤60 слов + есть ли FAQ
+  aeoReadiness: (() => { const firstP = document.querySelector('main p, article p, .content p, body p'); const wordCount = firstP ? firstP.textContent.trim().split(/\s+/).length : null; const hasFaqElement = !!document.querySelector('[class*="faq" i], [id*="faq" i], [itemtype*="FAQPage"]'); return { firstParagraphWords: wordCount, hasFaqSection: hasFaqElement }; })(),
+
+  // Первые 100 слов содержат ли ключ из H1 (5.7.1)
+  first100WordsHasH1Keyword: (() => { const h1 = document.querySelector('h1')?.textContent.trim().toLowerCase(); if (!h1) return null; const first100 = (document.body.innerText || '').trim().split(/\s+/).slice(0, 100).join(' ').toLowerCase(); const h1Words = h1.split(/\s+/).filter(w => w.length > 3); return h1Words.some(w => first100.includes(w)); })(),
+
+  // Favicon (7.3.2)
+  hasFavicon: !!document.querySelector('link[rel*="icon"]'),
+  faviconHrefs: [...document.querySelectorAll('link[rel*="icon"]')].map(l => l.href.replace(location.origin,'')).slice(0,3)
 }, null, 2)
 ```
 
-3. Проверь JS-ошибки в консоли через `mcp__claude-in-chrome__read_console_messages`
+3. Проверь JS-ошибки и **mixed content** в консоли через `mcp__claude-in-chrome__read_console_messages` (используй параметр `pattern` для фильтрации):
+   - `pattern: "Mixed Content"` — Mixed Content warnings (HTTPS-страница загружает HTTP-ресурсы → 2.1.2 critical)
+   - `pattern: "error"` — JS-ошибки
+   - Фиксируй количество и первые 3 примера в `mixedContentIssues[]` поле
 
 4. Сравни title/H1/meta description с WebFetch — если изменились, сайт **JS-зависимый** (критично для индексации Яндексом)
 
@@ -374,16 +461,39 @@ JSON.stringify({
 
 **Скриншот мобильного вида берётся из Lighthouse (шаг 2.3)** — Lighthouse запускается в мобильном viewport 412px и сохраняет `final-screenshot` в JSON. Извлечение в файл выполняется автоматически после Lighthouse.
 
-Здесь только JS-проверка мобильной вёрстки через `mcp__claude-in-chrome__javascript_tool`:
+Здесь только JS-проверка мобильной вёрстки через `mcp__claude-in-chrome__javascript_tool`. Сравни `bodyTextLen` с тем же показателем из десктопного запуска шага 2.1 — резкое различие (>30%) сигнализирует о desktop/mobile content parity issue (4.3.2):
+
 ```javascript
 JSON.stringify({
   viewportWidth: window.innerWidth,
   hasHorizontalScroll: document.body.scrollWidth > window.innerWidth,
   smallButtons: [...document.querySelectorAll('button,a,input[type=submit],[role=button]')]
-    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height < 44; }).length
+    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height < 44; }).length,
+  // Tap target spacing (4.2.2 — соседние кликабельные элементы должны быть ≥8px друг от друга)
+  closeTapTargets: (() => {
+    const els = [...document.querySelectorAll('button,a,input[type=submit],[role=button]')]
+      .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+    let close = 0;
+    for (let i = 0; i < els.length; i++) {
+      const a = els[i].getBoundingClientRect();
+      for (let j = i+1; j < els.length; j++) {
+        const b = els[j].getBoundingClientRect();
+        const dx = Math.max(0, Math.max(a.left - b.right, b.left - a.right));
+        const dy = Math.max(0, Math.max(a.top - b.bottom, b.top - a.bottom));
+        if (dx < 8 && dy < 8) { close++; break; }
+      }
+      if (close > 30) break;
+    }
+    return close;
+  })(),
+  // Mobile/desktop content parity (4.3.2)
+  bodyTextLen: document.body.innerText.length,
+  h1Count: document.querySelectorAll('h1').length,
+  h2Count: document.querySelectorAll('h2').length,
+  imgCount: document.querySelectorAll('img').length
 })
 ```
-Ожидаемо: `viewportWidth` ≈ 390, `hasHorizontalScroll: false`.
+Ожидаемо: `viewportWidth` ≈ 390, `hasHorizontalScroll: false`. Для оценки content parity сравни с десктопными показателями (`pageSize`, `h2count` из шага 2.1) — критично если мобильный показывает <70% контента десктопа.
 
 ### 2.3 Lighthouse
 ```bash
@@ -684,7 +794,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.6.1",
+  "skillVersion": "1.7.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,

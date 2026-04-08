@@ -1,5 +1,40 @@
 # Changelog — SEO Audit Skill
 
+## [1.7.0] — 2026-04-08
+
+### Added — расширение сбора данных по мастер-чеклисту
+
+**JS-сборщик в шаге 2.1 (12 новых полей):**
+- `domSize`, `domDepth` (3.5.4 — норма ≤1500 узлов / ≤32 уровня)
+- `semanticTags` — счётчики `<article>`, `<section>`, `<header>`, `<nav>`, `<main>`, `<aside>`, `<figure>` (17.3.6 для GEO)
+- `textHtmlRatio` (21.3.3 — норма ≥15%)
+- `fontDisplay` — массив `{family, display, status}` для первых 10 шрифтов (3.5.2)
+- `formsHttps` — `{total, httpsActions, insecureActions}` (2.5.2)
+- `protocolRelativeCount` — количество `src="//..."` ссылок (2.5.3)
+- `hasCookieConsent` — heuristic по `[class*=cookie/consent/gdpr]` (13.6.2)
+- `aeoReadiness` — `{firstParagraphWords, hasFaqSection}` (17.2.1, 17.2.2)
+- `first100WordsHasH1Keyword` (5.7.1)
+- `hasFavicon`, `faviconHrefs` (7.3.2)
+
+**JS-сборщик в шаге 2.2 (mobile, новые поля):**
+- `closeTapTargets` — пары интерактивных элементов с расстоянием < 8px (4.2.2)
+- `bodyTextLen`, `h1Count`, `h2Count`, `imgCount` для desktop/mobile content parity (4.3.2)
+
+**Bash-проверки:**
+- **1.1** — расширена проверкой AI-краулеров (`GPTBot`, `ClaudeBot`, `PerplexityBot`, `Googlebot-Extended` и др., 1.1.8)
+- **1.4** — добавлена проверка soft 404 (страница 200 с «не найдено» в теле, 1.5.2)
+- **1.7** — добавлена detection HTTP/2 и HTTP/3 (3.5.1)
+- **1.9** — расширена проверкой пагинации (title/canonical/реализация, 13.3)
+- **1.10 (новый)** — проверка `llms.txt` + `llms-full.txt` (21.3.5) и hreflang при многоязычии (Блок 16)
+- **1.11 (новый)** — детектор orphan pages (URL из sitemap без входящих ссылок с главной/навигации, 9.2.1)
+- **2.1** — Mixed Content detection через `read_console_messages` с `pattern: "Mixed Content"` (2.1.2)
+
+### Notes
+
+- Для mobile-desktop content parity: сравни `bodyTextLen` в шаге 2.2 с десктопным `pageSize` из шага 2.1. Резкое различие (>30%) — это критично (mobile-first indexing).
+- Hreflang проверяется только если найден `<link rel="alternate" hreflang>` в шаге 1.5. Иначе — пропуск Блока 16 как «не применимо».
+- Orphan pages — эвристика на основе главной + навигации (без полного crawl). Для коммерческих сайтов даёт быструю валидную картину.
+
 ## [1.6.1] — 2026-04-08
 
 ### Fixed (по результатам тестового аудита maxilac.ru)
