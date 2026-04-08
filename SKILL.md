@@ -240,25 +240,38 @@ IMG_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=src=")[^"]+\.(jpg|png|webp|svg)[^
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
-**⛔ ЗАПРЕЩЕНО**: использовать Lighthouse `final-screenshot` для десктопа. Lighthouse снимает только мобильный viewport (412px). Десктоп — ТОЛЬКО через `mcp__claude-in-chrome__computer`. Файл ОБЯЗАН иметь расширение `.png`. Это проверяется в шаге 2.6, попытка сохранить как `.jpg` или подменить на Lighthouse-картинку приведёт к провалу финальной валидации.
+**Десктоп-скриншот делается через локальный headless Chrome CLI**, не через `mcp__claude-in-chrome__computer`. Причина: MCP-инструмент возвращает изображение только в контекст LLM, без доступа к raw-байтам, которые можно записать в файл. Поэтому единственный надёжный способ — запустить headless Chrome с **изолированным временным профилем**, чтобы избежать контаминации (пример: дефолтный профиль может открывать стартовую страницу другого сайта вместо `$ARGUMENTS`).
 
-1. **Десктоп-скриншот через Claude Chrome Extension** (не из Lighthouse — Lighthouse снимает только мобильный viewport 412px):
-   - Вызови `mcp__claude-in-chrome__tabs_context_mcp` — убедись что tabId из шага 0 активен и показывает `$ARGUMENTS`
-   - Вызови `mcp__claude-in-chrome__computer` с action: `screenshot` — получишь PNG в десктопном viewport
-   - Из ответа извлеки base64-строку PNG (поле `data`)
-   - Запиши через Write-инструмент в файл: `${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64`
-   - Декодируй: `base64 -d "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64" > "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png" && rm "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.b64"`
-   - **Обязательная валидация** — выполни и убедись что вывод `OK`:
+**⛔ ЗАПРЕЩЕНО**:
+- Использовать Lighthouse `final-screenshot` для десктопа (Lighthouse снимает только мобильный viewport 412px)
+- Использовать headless Chrome без `--user-data-dir=$(mktemp -d)` (контаминация дефолтным профилем приведёт к скриншоту чужого сайта)
+- Переименовывать существующий файл из предыдущего аудита
+
+1. **Десктоп-скриншот через headless Chrome с изолированным профилем**:
    ```bash
-   node -e "
-   const buf = require('fs').readFileSync('${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png');
-   const isPNG = buf[0]===0x89 && buf[1]===0x50 && buf[2]===0x4e && buf[3]===0x47;
-   if (!isPNG) { console.error('FAIL: файл не является PNG (magic bytes:', buf.slice(0,4).toString('hex') + '). Агент подменил десктоп-скриншот JPEG из Lighthouse. Повтори шаг через mcp__claude-in-chrome__computer.'); process.exit(1); }
-   if (buf.length < 50000) { console.error('FAIL: файл слишком мал (' + buf.length + ' bytes < 50KB) — скриншот не получен. Повтори через mcp__claude-in-chrome__computer.'); process.exit(1); }
-   console.log('OK: PNG десктоп-скриншот', buf.length, 'bytes');
-   "
+   CHROME_BIN=$(ls "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe" /usr/bin/google-chrome 2>/dev/null | head -1)
+   FRESH_PROFILE=$(mktemp -d)
+   DESKTOP_PNG="${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png"
+   # Перед снятием — удалить файл по этому пути, если уже существует (защита от reuse)
+   rm -f "$DESKTOP_PNG"
+   "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
+     --user-data-dir="$FRESH_PROFILE" \
+     --no-first-run --no-default-browser-check \
+     --hide-scrollbars \
+     --window-size=1440,900 \
+     --screenshot="$DESKTOP_PNG" \
+     "$ARGUMENTS" 2>&1 | tail -5
+   rm -rf "$FRESH_PROFILE"
+   ls -lh "$DESKTOP_PNG"
    ```
-   Если валидация провалилась — запиши `null` в `screenshotPaths.desktop` и продолжи.
+
+   **Ключевые флаги**:
+   - `--user-data-dir=$(mktemp -d)` — свежий пустой профиль, не подхватит чужую стартовую страницу
+   - `--no-first-run --no-default-browser-check` — не показывать диалоги первого запуска
+   - URL `$ARGUMENTS` передаётся последним аргументом — Chrome принудительно навигируется туда
+   - `rm -f "$DESKTOP_PNG"` перед — гарантирует что в случае ошибки Chrome файл будет отсутствовать (а не остаться от прошлого аудита)
+
+   Финальная проверка валидности файла — в шаге **2.6** (после Lighthouse).
 
 2. Выполни через `mcp__claude-in-chrome__javascript_tool` (используй тот же tabId):
 ```javascript
@@ -432,49 +445,58 @@ if (shot) {
 node -e "
 const fs = require('fs');
 const crypto = require('crypto');
-const desktopPath = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png';
-const mobilePath  = '${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg';
+const desktopPath  = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png';
+const mobilePath   = '${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg';
+const lighthouseJson = '${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json';
 
 // 1. Десктоп должен существовать ИМЕННО как .png
 if (!fs.existsSync(desktopPath)) {
   console.error('FAIL: десктоп-скриншот не найден по пути ' + desktopPath);
-  console.error('Десктоп должен быть сохранён ИМЕННО с расширением .png через mcp__claude-in-chrome__computer (шаг 2.1).');
-  console.error('Если ты сохранил его как .jpg или другое расширение — это нарушение схемы. Пересохрани через Chrome Extension.');
+  console.error('Десктоп должен быть сохранён через headless Chrome CLI с --user-data-dir=\$(mktemp -d) (шаг 2.1).');
   process.exit(1);
 }
 
+const dStat = fs.statSync(desktopPath);
 const dBuf = fs.readFileSync(desktopPath);
 
-// 2. Десктоп — настоящий PNG
+// 2. mtime: файл ОБЯЗАН быть создан в текущей сессии (новее чем lighthouse JSON или mobile JPG этой сессии)
+const referenceTime = fs.existsSync(lighthouseJson)
+  ? fs.statSync(lighthouseJson).mtimeMs
+  : (fs.existsSync(mobilePath) ? fs.statSync(mobilePath).mtimeMs : Date.now() - 600000);
+if (dStat.mtimeMs < referenceTime - 1000) {
+  console.error('FAIL: ' + desktopPath + ' имеет mtime ' + new Date(dStat.mtimeMs).toISOString());
+  console.error('Это раньше чем lighthouse JSON / mobile-screenshot этой сессии (' + new Date(referenceTime).toISOString() + ').');
+  console.error('Файл остался от ПРЕДЫДУЩЕГО аудита и не был перезаписан. Скорее всего headless Chrome упал или подхватил чужой профиль.');
+  console.error('Удали файл и пересними десктоп через headless Chrome с --user-data-dir=\$(mktemp -d) (см. шаг 2.1).');
+  process.exit(1);
+}
+
+// 3. Десктоп — настоящий PNG
 const isPNG = dBuf[0]===0x89 && dBuf[1]===0x50 && dBuf[2]===0x4e && dBuf[3]===0x47;
 if (!isPNG) {
   console.error('FAIL: ' + desktopPath + ' имеет magic bytes ' + dBuf.slice(0,4).toString('hex') + ', не PNG (89504e47).');
-  console.error('Скорее всего ты сохранил JPEG из Lighthouse под именем .png. Это запрещено.');
-  console.error('Десктоп ОБЯЗАН быть получен через mcp__claude-in-chrome__computer action=screenshot, не из Lighthouse.');
   process.exit(1);
 }
 
-// 3. Десктоп достаточно большой (десктоп viewport ~1280px → обычно > 50KB)
+// 4. Десктоп достаточно большой (1440×900 viewport → обычно > 50KB)
 if (dBuf.length < 50000) {
-  console.error('FAIL: десктоп-скриншот ' + dBuf.length + ' bytes < 50KB. Скорее всего ошибка снятия — пересними через Chrome Extension.');
+  console.error('FAIL: десктоп-скриншот ' + dBuf.length + ' bytes < 50KB. Скорее всего headless Chrome не смог снять страницу.');
   process.exit(1);
 }
 
-// 4. Если мобильный есть — сравнить MD5. Идентичные файлы = агент использовал один источник для обоих
+// 5. Если мобильный есть — сравнить MD5. Идентичные файлы = агент использовал один источник
 if (fs.existsSync(mobilePath)) {
   const mBuf = fs.readFileSync(mobilePath);
   const dHash = crypto.createHash('md5').update(dBuf).digest('hex');
   const mHash = crypto.createHash('md5').update(mBuf).digest('hex');
   if (dHash === mHash) {
     console.error('FAIL: desktop и mobile имеют одинаковый MD5 (' + dHash + ').');
-    console.error('Это значит, что ты использовал один и тот же файл (вероятно Lighthouse final-screenshot) для обоих скриншотов.');
-    console.error('Десктоп ОБЯЗАН быть снят через mcp__claude-in-chrome__computer (1280px viewport), мобильный — из Lighthouse JSON (412px).');
-    console.error('Пересними десктоп через Chrome Extension и повтори валидацию.');
+    console.error('Один источник для обоих — это нарушение. Пересними десктоп.');
     process.exit(1);
   }
-  console.log('OK: desktop ' + dBuf.length + 'B (PNG, MD5 ' + dHash.slice(0,8) + '), mobile ' + mBuf.length + 'B (JPG, MD5 ' + mHash.slice(0,8) + ')');
+  console.log('OK: desktop ' + dBuf.length + 'B (PNG, MD5 ' + dHash.slice(0,8) + ', mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile ' + mBuf.length + 'B (JPG, MD5 ' + mHash.slice(0,8) + ')');
 } else {
-  console.log('OK: desktop ' + dBuf.length + 'B (PNG), mobile отсутствует');
+  console.log('OK: desktop ' + dBuf.length + 'B (PNG, mtime ' + new Date(dStat.mtimeMs).toISOString() + '), mobile отсутствует');
 }
 "
 ```
@@ -550,7 +572,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.5.2",
+  "skillVersion": "1.5.3",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
