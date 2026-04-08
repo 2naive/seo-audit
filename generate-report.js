@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.8.1';
+const SKILL_VERSION = '1.8.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -204,7 +204,7 @@ function buildHTML(data) {
 
   // ── Section: How to read ────────────────────────────────────────────────────
   const howToReadHtml = `
-  <div class="card how-to-read">
+  <div class="card how-to-read" id="how-to-read">
     <h2>Как читать этот отчёт</h2>
     <p style="color:#475569;margin-bottom:14px;font-size:14px;line-height:1.6">
       Отчёт построен на синтезе 40+ источников и мастер-чеклисте из 374 пунктов в 21 блоке. Каждая рекомендация автоматически приоритизирована по влиянию на SEO и сложности внедрения.
@@ -239,7 +239,7 @@ function buildHTML(data) {
 
   // ── Section: Executive Summary ──────────────────────────────────────────────
   const execSummaryHtml = `
-  <div class="card exec-summary">
+  <div class="card exec-summary" id="exec-summary">
     <div class="exec-grid">
       <div class="exec-grade-block">
         <div class="exec-grade-label">Оценка</div>
@@ -313,7 +313,7 @@ function buildHTML(data) {
     </tr>`;
   }).join('') : '';
   const scoresHtml = scoresRows ? `
-  <div class="card">
+  <div class="card" id="scores">
     <h2>Оценки по 10 категориям</h2>
     <table>
       <thead><tr><th>Категория</th><th style="text-align:center">Оценка</th><th>Прогресс</th></tr></thead>
@@ -335,7 +335,7 @@ function buildHTML(data) {
     const imgOpts  = lighthouse.imgOptimizations ?? [];
     const bfFails  = lighthouse.bfcacheFailures ?? [];
     return `
-    <div class="card">
+    <div class="card" id="lighthouse">
       <h2>Lighthouse — производительность и качество</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
         ${cats.map(c => `
@@ -386,7 +386,7 @@ function buildHTML(data) {
     </div>`;
   }
   const roadmapHtml = recs.length ? `
-  <div class="card roadmap">
+  <div class="card roadmap" id="roadmap">
     <h2>План действий</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:20px">Рекомендации сгруппированы в три фазы по приоритету и сложности. Внутри каждой фазы — упорядочены по ROI.</p>
     <div class="phase-grid">
@@ -461,8 +461,31 @@ function buildHTML(data) {
   const numberedMonth    = numbered.filter(r => computePhase(r) === 'month');
   const numberedStrategy = numbered.filter(r => computePhase(r) === 'strategy');
 
+  // Pre-compute screenshot data URIs (used in TOC visibility check + Screenshots section)
+  const desktopSrc = screenshotBase64(screenshotPaths?.desktop);
+  const mobileSrc  = screenshotBase64(screenshotPaths?.mobile);
+
+  // ── Section: TOC (table of contents) ────────────────────────────────────────
+  const tocHtml = `
+  <div class="card toc">
+    <h2>Содержание</h2>
+    <ol class="toc-list">
+      <li><a href="#how-to-read">Как читать этот отчёт</a></li>
+      <li><a href="#exec-summary">Главное · оценка ${grade}</a></li>
+      <li><a href="#scores">Оценки по 10 категориям</a></li>
+      ${(lighthouse && lighthouse.available) ? `<li><a href="#lighthouse">Lighthouse — производительность</a></li>` : ''}
+      ${recs.length ? `<li><a href="#roadmap">План действий — ${urgentRecs.length + monthRecs.length + strategyRecs.length} задач в 3 фазах</a></li>` : ''}
+      ${recs.length ? `<li><a href="#recs">Детализация ${recs.length} рекомендаций</a></li>` : ''}
+      ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'страницы' : 'страниц'}</a></li>` : ''}
+      ${(technical && technical.length) ? `<li><a href="#technical">Технические проверки по блокам</a></li>` : ''}
+      ${(desktopSrc || mobileSrc) ? `<li><a href="#screenshots">Скриншоты сайта</a></li>` : ''}
+      ${(notChecked && notChecked.length) ? `<li><a href="#not-checked">Что не проверялось</a></li>` : ''}
+      <li><a href="#methodology">Методология</a></li>
+    </ol>
+  </div>`;
+
   const recsHtml = recs.length ? `
-  <div class="card">
+  <div class="card" id="recs">
     <h2>Детализация рекомендаций</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:20px">Каждая рекомендация содержит проблему, бизнес-эффект, пошаговый план, готовый код и способ проверки.</p>
     ${recsPhaseSection('🔴 Срочно — 1–2 недели', '#dc2626', numberedUrgent)}
@@ -509,7 +532,7 @@ function buildHTML(data) {
     </div>`;
   }
   const pagesHtml = (pages && pages.length) ? `
-  <div class="card">
+  <div class="card" id="pages">
     <h2>Анализ ключевых страниц</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:16px">Проверены ${pages.length} ${pages.length === 1 ? 'страница' : 'страниц'}.</p>
     <div class="pages-grid">${pages.map(p => pageCard(p)).join('')}</div>
@@ -527,7 +550,7 @@ function buildHTML(data) {
     return na - nb;
   });
   const techHtml = techBlockOrder.length ? `
-  <div class="card">
+  <div class="card" id="technical">
     <h2>Технические проверки по блокам мастер-чеклиста</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:16px">Проверки сгруппированы по разделам мастер-чеклиста (374 пункта в 21 блоке).</p>
     ${techBlockOrder.map(b => `
@@ -547,10 +570,9 @@ function buildHTML(data) {
   </div>` : '';
 
   // ── Section: Screenshots ────────────────────────────────────────────────────
-  const desktopSrc = screenshotBase64(screenshotPaths?.desktop);
-  const mobileSrc  = screenshotBase64(screenshotPaths?.mobile);
+  // desktopSrc / mobileSrc предвычислены в начале buildHTML
   const screenshotsHtml = (desktopSrc || mobileSrc) ? `
-  <div class="card">
+  <div class="card" id="screenshots">
     <h2>Скриншоты сайта</h2>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
       ${desktopSrc ? `<div>
@@ -566,7 +588,7 @@ function buildHTML(data) {
 
   // ── Section: Not checked / scope disclosure ─────────────────────────────────
   const notCheckedHtml = (notChecked && notChecked.length) ? `
-  <div class="card not-checked">
+  <div class="card not-checked" id="not-checked">
     <h2>Что не проверялось автоматически</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:14px">
       Часть проверок мастер-чеклиста требует доступа к внешним системам (Google Search Console, Яндекс.Вебмастер, Ahrefs) или ручной экспертной оценки. Эти разделы не входят в автоматический аудит:
@@ -584,7 +606,7 @@ function buildHTML(data) {
 
   // ── Section: Methodology / footer ───────────────────────────────────────────
   const methodologyHtml = `
-  <div class="card methodology">
+  <div class="card methodology" id="methodology">
     <h2>Методология</h2>
     <p>
       Аудит построен на синтезе <strong>40+ источников</strong> (Semrush, Ahrefs, Moz, Google, Brightter, Wellows, NoGood, GitHub-стандарты) и <strong>мастер-чеклисте из 374 пунктов в 21 блоке</strong>.
@@ -659,6 +681,13 @@ function buildHTML(data) {
   .cover-footer { display: flex; justify-content: space-between; align-items: flex-end; font-size: 13px; opacity: .8; padding-top: 30px; border-top: 1px solid rgba(255,255,255,.2); }
   .cover-footer a { color: #fff; text-decoration: none; }
   .cover-footer-version { font-family: monospace; }
+
+  /* ── TOC ────────────────────────────────────────────────────────────────── */
+  .toc h2 { font-size: 16px; margin-bottom: 12px; }
+  .toc-list { padding-left: 22px; font-size: 14px; line-height: 1.9; column-count: 2; column-gap: 32px; }
+  .toc-list li { padding: 1px 0; break-inside: avoid; }
+  .toc-list a { color: var(--primary); text-decoration: none; }
+  .toc-list a:hover { text-decoration: underline; }
 
   /* ── How to read ────────────────────────────────────────────────────────── */
   .legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
@@ -779,6 +808,7 @@ function buildHTML(data) {
 <body>
 <div class="page">
   ${coverHtml}
+  ${tocHtml}
   ${howToReadHtml}
   ${execSummaryHtml}
   ${statsHtml}
