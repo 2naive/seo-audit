@@ -240,6 +240,8 @@ IMG_URL=$(curl -s "$ARGUMENTS" | grep -oP '(?<=src=")[^"]+\.(jpg|png|webp|svg)[^
 ### 2.1 Десктоп — главная страница
 Перейди на `$ARGUMENTS` через `mcp__claude-in-chrome__navigate` (используй tabId из шага 0). Дождись загрузки страницы.
 
+**⛔ ЗАПРЕЩЕНО**: использовать Lighthouse `final-screenshot` для десктопа. Lighthouse снимает только мобильный viewport (412px). Десктоп — ТОЛЬКО через `mcp__claude-in-chrome__computer`. Файл ОБЯЗАН иметь расширение `.png`. Это проверяется в шаге 2.6, попытка сохранить как `.jpg` или подменить на Lighthouse-картинку приведёт к провалу финальной валидации.
+
 1. **Десктоп-скриншот через Claude Chrome Extension** (не из Lighthouse — Lighthouse снимает только мобильный viewport 412px):
    - Вызови `mcp__claude-in-chrome__tabs_context_mcp` — убедись что tabId из шага 0 активен и показывает `$ARGUMENTS`
    - Вызови `mcp__claude-in-chrome__computer` с action: `screenshot` — получишь PNG в десктопном viewport
@@ -422,6 +424,63 @@ if (shot) {
 "
 ```
 
+### 2.6 Финальная валидация скриншотов (ОБЯЗАТЕЛЬНО)
+
+**Это контрольная точка перед Фазой 3.** Запускается после того как desktop (шаг 2.1) и mobile (шаг 2.3) сохранены. Запрещает любые попытки обойти проверки расширением файла или подменой источника.
+
+```bash
+node -e "
+const fs = require('fs');
+const crypto = require('crypto');
+const desktopPath = '${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.png';
+const mobilePath  = '${OUTPUT_DIR}/mobile-${DOMAIN}-${DATETIME}.jpg';
+
+// 1. Десктоп должен существовать ИМЕННО как .png
+if (!fs.existsSync(desktopPath)) {
+  console.error('FAIL: десктоп-скриншот не найден по пути ' + desktopPath);
+  console.error('Десктоп должен быть сохранён ИМЕННО с расширением .png через mcp__claude-in-chrome__computer (шаг 2.1).');
+  console.error('Если ты сохранил его как .jpg или другое расширение — это нарушение схемы. Пересохрани через Chrome Extension.');
+  process.exit(1);
+}
+
+const dBuf = fs.readFileSync(desktopPath);
+
+// 2. Десктоп — настоящий PNG
+const isPNG = dBuf[0]===0x89 && dBuf[1]===0x50 && dBuf[2]===0x4e && dBuf[3]===0x47;
+if (!isPNG) {
+  console.error('FAIL: ' + desktopPath + ' имеет magic bytes ' + dBuf.slice(0,4).toString('hex') + ', не PNG (89504e47).');
+  console.error('Скорее всего ты сохранил JPEG из Lighthouse под именем .png. Это запрещено.');
+  console.error('Десктоп ОБЯЗАН быть получен через mcp__claude-in-chrome__computer action=screenshot, не из Lighthouse.');
+  process.exit(1);
+}
+
+// 3. Десктоп достаточно большой (десктоп viewport ~1280px → обычно > 50KB)
+if (dBuf.length < 50000) {
+  console.error('FAIL: десктоп-скриншот ' + dBuf.length + ' bytes < 50KB. Скорее всего ошибка снятия — пересними через Chrome Extension.');
+  process.exit(1);
+}
+
+// 4. Если мобильный есть — сравнить MD5. Идентичные файлы = агент использовал один источник для обоих
+if (fs.existsSync(mobilePath)) {
+  const mBuf = fs.readFileSync(mobilePath);
+  const dHash = crypto.createHash('md5').update(dBuf).digest('hex');
+  const mHash = crypto.createHash('md5').update(mBuf).digest('hex');
+  if (dHash === mHash) {
+    console.error('FAIL: desktop и mobile имеют одинаковый MD5 (' + dHash + ').');
+    console.error('Это значит, что ты использовал один и тот же файл (вероятно Lighthouse final-screenshot) для обоих скриншотов.');
+    console.error('Десктоп ОБЯЗАН быть снят через mcp__claude-in-chrome__computer (1280px viewport), мобильный — из Lighthouse JSON (412px).');
+    console.error('Пересними десктоп через Chrome Extension и повтори валидацию.');
+    process.exit(1);
+  }
+  console.log('OK: desktop ' + dBuf.length + 'B (PNG, MD5 ' + dHash.slice(0,8) + '), mobile ' + mBuf.length + 'B (JPG, MD5 ' + mHash.slice(0,8) + ')');
+} else {
+  console.log('OK: desktop ' + dBuf.length + 'B (PNG), mobile отсутствует');
+}
+"
+```
+
+**Если этот скрипт упал** — НЕ продолжай к Фазе 3. Вернись к шагу 2.1 и пересними десктоп через `mcp__claude-in-chrome__computer`. Никаких обходных путей: расширение должно быть `.png`, источник — Chrome Extension, не Lighthouse.
+
 ### 2.4 Проверка дополнительных страниц
 Для 2–3 URL из sitemap — перейди через `mcp__claude-in-chrome__navigate` и повтори консольный скрипт из 2.1 через `mcp__claude-in-chrome__javascript_tool` (без скриншотов).
 
@@ -491,7 +550,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.5.0",
+  "skillVersion": "1.5.1",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
