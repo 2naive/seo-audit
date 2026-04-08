@@ -348,6 +348,18 @@ JSON.stringify({
   externalNoFollow: [...document.querySelectorAll('a[href]')].filter(a => a.href && !a.href.startsWith(location.origin) && a.href.startsWith('http') && (a.rel||'').includes('nofollow')).length,
   nofollowLinks: document.querySelectorAll('a[rel*=nofollow]').length,
   anchorFrequency: (() => { const freq = {}; [...document.querySelectorAll('a[href]')].filter(a => a.href.startsWith(location.origin)).forEach(a => { const t = a.textContent.trim().slice(0,40); if (t) freq[t] = (freq[t]||0)+1; }); return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([text,count])=>({text,count})); })(),
+  badAnchors: (() => {
+    // Плохие анкоры — не описательные, не помогают SEO (9.2.3)
+    const badPatterns = /^(нажмите|нажми|здесь|тут|подробнее|подробно|читать далее|читать ещё|читать больше|click here|more|read more|learn more|here|details|link|ссылка|перейти|сюда|туда|>>|→)\s*$/i;
+    const bad = [];
+    [...document.querySelectorAll('a[href]')].filter(a => a.href.startsWith(location.origin)).forEach(a => {
+      const t = a.textContent.trim();
+      if (t && badPatterns.test(t)) {
+        bad.push({ text: t.slice(0, 40), href: a.pathname });
+      }
+    });
+    return { count: bad.length, examples: bad.slice(0, 10) };
+  })(),
   schemaTypes: [...document.querySelectorAll('script[type="application/ld+json"]')].map(s => { try { const d = JSON.parse(s.textContent); return d['@type']; } catch(e) { return 'parse_error'; } }),
   hasBreadcrumbs: !!document.querySelector('[itemtype*="BreadcrumbList"], .breadcrumb, .breadcrumbs, nav[aria-label*="breadcrumb" i]'),
   hasNavMenu: !!document.querySelector('nav, [role=navigation]'),
@@ -705,6 +717,181 @@ JSON.stringify((() => {
 - Google Rich Results Test: `https://search.google.com/test/rich-results`
 - Яндекс Валидатор разметки: `https://webmaster.yandex.ru/tools/microtest/`
 
+### 2.5.1 Библиотека готовых JSON-LD шаблонов
+
+При формировании рекомендаций по добавлению Schema.org **всегда давай готовый JSON-LD блок** с подставленными реальными данными сайта (название, URL, контакты, цены), не общую инструкцию. Используй шаблоны ниже как основу — заменяй плейсхолдеры `{...}` на данные собранные в Фазе 1/2.
+
+**Organization** (обязательно для всех коммерческих сайтов):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "{Название компании}",
+  "url": "{$ARGUMENTS}",
+  "logo": "{URL логотипа, например /images/logo.png}",
+  "description": "{Краткое описание из meta description главной}",
+  "telephone": "{+7XXXXXXXXXX}",
+  "email": "{email}",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "{улица, дом}",
+    "addressLocality": "{город}",
+    "postalCode": "{индекс}",
+    "addressCountry": "RU"
+  },
+  "sameAs": [
+    "{vk.com/...}",
+    "{t.me/...}"
+  ]
+}
+```
+
+**WebSite** с SearchAction (для Sitelinks Searchbox):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "{Название сайта}",
+  "url": "{$ARGUMENTS}",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "{$ARGUMENTS}/search?q={search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  }
+}
+```
+
+**BreadcrumbList** (для каждой внутренней страницы):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Главная", "item": "{$ARGUMENTS}" },
+    { "@type": "ListItem", "position": 2, "name": "{Раздел}", "item": "{URL раздела}" },
+    { "@type": "ListItem", "position": 3, "name": "{Текущая страница}" }
+  ]
+}
+```
+
+**Product** (для интернет-магазинов):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "{Название товара}",
+  "description": "{Описание из meta description}",
+  "image": "{URL основного изображения}",
+  "sku": "{артикул}",
+  "brand": { "@type": "Brand", "name": "{Бренд}" },
+  "offers": {
+    "@type": "Offer",
+    "url": "{URL страницы товара}",
+    "priceCurrency": "RUB",
+    "price": "{цена}",
+    "availability": "https://schema.org/InStock",
+    "seller": { "@type": "Organization", "name": "{Название магазина}" }
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "{средняя оценка}",
+    "reviewCount": "{количество отзывов}"
+  }
+}
+```
+
+**Article / BlogPosting** (для статей):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "{H1 страницы}",
+  "image": "{URL основного изображения статьи}",
+  "datePublished": "{ISO 8601, например 2026-04-09}",
+  "dateModified": "{ISO 8601}",
+  "author": {
+    "@type": "Person",
+    "name": "{Имя автора}",
+    "url": "{URL страницы автора}"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "{Название сайта}",
+    "logo": { "@type": "ImageObject", "url": "{URL логотипа}" }
+  },
+  "description": "{краткое описание статьи}"
+}
+```
+
+**FAQPage** (если есть блок вопросов-ответов):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "{Текст вопроса 1}",
+      "acceptedAnswer": { "@type": "Answer", "text": "{Текст ответа 1}" }
+    },
+    {
+      "@type": "Question",
+      "name": "{Текст вопроса 2}",
+      "acceptedAnswer": { "@type": "Answer", "text": "{Текст ответа 2}" }
+    }
+  ]
+}
+```
+
+**LocalBusiness** (для сайтов с физической точкой):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "@id": "{$ARGUMENTS}#localbusiness",
+  "name": "{Название}",
+  "image": "{URL фото}",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "{улица, дом}",
+    "addressLocality": "{город}",
+    "postalCode": "{индекс}",
+    "addressCountry": "RU"
+  },
+  "geo": { "@type": "GeoCoordinates", "latitude": "{широта}", "longitude": "{долгота}" },
+  "telephone": "{+7XXXXXXXXXX}",
+  "openingHoursSpecification": [
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "09:00", "closes": "18:00" }
+  ],
+  "priceRange": "{например ₽₽}"
+}
+```
+
+**Service** (для сайтов услуг):
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "{Название услуги}",
+  "provider": { "@type": "Organization", "name": "{Название компании}", "url": "{$ARGUMENTS}" },
+  "areaServed": { "@type": "City", "name": "{Город}" },
+  "description": "{Описание услуги}",
+  "offers": {
+    "@type": "Offer",
+    "priceCurrency": "RUB",
+    "price": "{цена}"
+  }
+}
+```
+
+**Правило подстановки данных**:
+- Не оставляй плейсхолдеры `{...}` в `fix`-поле — заменяй их на реальные данные собранные в шагах 1.5 (raw HTML), 2.1 (DOM), 2.5 (существующая Schema)
+- Если данные неизвестны (например, нет физического адреса) — пропускай поле, не вставляй пустую строку
+- Не давай Schema, которая не подходит сайту: для блога — Article, для магазина — Product, для услуг — Service. Не предлагай LocalBusiness если нет точки продаж.
+
 ---
 
 ## Фаза 3 — Формирование данных отчёта
@@ -768,6 +955,34 @@ JSON.stringify((() => {
 | «PHPSESSID в URL засоряет индекс» | «Параметризованные URL создают дубли в индексе Google — каждая страница может попасть в индекс N раз с разными ID, размывая ссылочный вес и каннибализируя ключевые запросы» |
 
 **Самопроверка для `impact`**: можно ли его прочитать клиенту-нетехнику? Если ответ «он не поймёт что плохого» — переписать. Должно быть видимое для бизнеса последствие (трафик, конверсия, CTR, доверие, юридический риск, brand image).
+
+**Справочные ROI-значения** для типичных проблем (используй в `impact` для убедительности — конкретные цифры лучше абстракций):
+
+| Проблема | Источник | Справочный эффект |
+|---|---|---|
+| Schema.org Organization + WebSite SearchAction | Google Search Central case studies | Sitelinks Searchbox в SERP, Knowledge Panel; +5–15% CTR по брендовым запросам |
+| Schema.org Product (e-commerce) | Google rich results docs | Rich snippets со звёздами, ценой, наличием → +20–30% CTR в SERP |
+| Schema.org FAQPage | Google FAQ rich result | До 60% пространства SERP занимает rich snippet с FAQ → высокий CTR |
+| Schema.org BreadcrumbList | Google docs | Breadcrumbs в SERP вместо URL → лучше визуальный якорь, +5% CTR |
+| HSTS заголовок | Mozilla observatory | Защита от downgrade-атак при первом визите; +10 в Mozilla Security score |
+| HTTP/2 включён | Google Web Vitals | -100–300ms к TTFB, мультиплексирование запросов → -1s LCP на медленных соединениях |
+| Canonical-теги | Google Search Central | Устраняет дубли в индексе, концентрирует ссылочный вес → +10–25% позиций по запросам |
+| Уникальные title/description на каждой странице | Backlinko study 2023 | Дублирующиеся title теряют до 40% потенциального трафика по ключам |
+| H1 присутствует и содержит ключ | Backlinko 2 millionsearch results study | Сайты с H1 ранжируются в среднем на 7 позиций выше |
+| Sitemap.xml корректный | Google Search Central | Ускорение индексации новых страниц с 2–8 недель до 1–3 дней |
+| LCP < 2.5s (зелёная зона) | Google CWV ranking factor | Часть алгоритма ранжирования с июня 2021. Каждая 100ms LCP → ~0.6% conversion |
+| CLS < 0.1 | Google CWV | Часть алгоритма ранжирования. Высокий CLS → +20–40% bounce rate |
+| TBT < 200ms | Lighthouse Performance | Связан с FID/INP — фактор ранжирования с марта 2024 |
+| Открытые AI-краулеры (GPTBot, ClaudeBot) | OpenAI / Anthropic docs | Сайт попадает в обучающие выборки и AI-ответы — новый канал органического трафика |
+| Mobile viewport meta + tap targets ≥ 44px | Google Mobile-Friendly | Mobile-first indexing с 2019. Без viewport — мобильная версия исключается из мобильного индекса |
+| Cookie consent (152-ФЗ для РФ, GDPR для ЕС) | Роскомнадзор / GDPR Article 13 | Юридический риск: штраф до 75 000 ₽ (РФ) / до 4% годового оборота (ЕС) |
+| Яндекс.Метрика установлена | — | Доступ к 70% поисковой аудитории РФ через веб-визор, конверсии, ремаркетинг |
+| Verification в Яндекс.Вебмастер / GSC | — | Доступ к данным об индексации, поисковых запросах, ошибках; ранние уведомления о санкциях |
+
+**Применение**: при формировании `impact` ссылайся на одно из значений выше с указанием источника. Например:
+- ✅ «Sitelinks Searchbox в Google по брендовым запросам — это +5-15% CTR (Google Search Central case studies)»
+- ✅ «Каждая 100ms LCP снижает conversion на ~0.6% (Google CWV)»
+- ❌ «Без Schema.org нет rich snippets» (нет цифры, нет источника)
 
 ### Правило 3 — Дедупликация по URL
 
@@ -866,6 +1081,8 @@ JSON.stringify((() => {
 | `pages[].metrics.protocolRelativeCount` | `> 0` | Заменить `//example.com` на `https://` (2.5.3) |
 | `pages[].metrics.closeTapTargets` | `> 5` (mobile) | Увеличить расстояние между кликабельными элементами (4.2.2) |
 | `pages[].metrics.fontDisplay` | элементы без `display: swap` | Добавить `font-display: swap` (3.5.2) |
+| `pages[].metrics.badAnchors.count` | `> 0` | Заменить плохие анкоры (см. examples) на конкретные ключевые слова (9.2.3). Перечислить найденные тексты в `description` рекомендации. |
+| `pages[].metrics.bodyTextLen / 5` (≈ слов) | `< 300` для не-главной страницы | Thin content (13.1.1) — расширить контент до 300+ слов уникального текста (без шаблона/футера). Critical для коммерческих страниц. |
 
 **Сравнение mobile/desktop content parity** (4.3.2): сравни `pages[].metrics.bodyTextLen` (десктоп из 2.1) с `bodyTextLen` из 2.2 (mobile). Если `mobile < desktop * 0.7` — критично, mobile-first indexing будет видеть только урезанную версию.
 
@@ -894,7 +1111,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.8.4",
+  "skillVersion": "1.9.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -997,7 +1214,8 @@ JSON.stringify((() => {
         "formsHttps": { "total": 1, "httpsActions": 1, "insecureActions": [] },
         "protocolRelativeCount": 0,
         "closeTapTargets": 0,
-        "bodyTextLen": 4521
+        "bodyTextLen": 4521,
+        "badAnchors": { "count": 3, "examples": [{ "text": "подробнее", "href": "/services/1" }] }
       },
       "issues": [
         { "severity": "critical|warning|info|ok", "msg": "..." }
