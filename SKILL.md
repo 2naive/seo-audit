@@ -1592,7 +1592,7 @@ stage.total = seo + dev + qa + devops + design + pm
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.13.1",
+  "skillVersion": "1.13.2",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1697,7 +1697,7 @@ stage.total = seo + dev + qa + devops + design + pm
         "titleLen": 57,
         "metaDesc": "...",
         "metaDescLen": 128,
-        "h1": "...",
+        "h1": ["Заголовок страницы"],
         "h2Count": 7,
         "h3Count": 0,
         "canonical": "...",
@@ -1862,6 +1862,67 @@ stage.total = seo + dev + qa + devops + design + pm
 **Требование к `scoreDetails`**: поле обязательно для каждой категории в `scores`. Каждый элемент — конкретный факт с иконкой статуса (✅/🔴/⚠️), например: `"✅ title 52 симв."`, `"🔴 description 285 симв. (норма 70-160)"`. Не оставляй пустые массивы.
 
 **Поле `block` в каждой проверке** — номер раздела мастер-чеклиста (например `"2.2"` = «Блок 2 → HTTP-заголовки»). Используется для группировки в отчёте.
+
+---
+
+### Правило 15 — Целостность данных в `pages[]` (КРИТИЧНО)
+
+В отчёте есть две независимых поверхности на одну и ту же страницу: **метрики** в шапке карточки (Title, Description, H1, Canonical, Schema.org, OG, Breadcrumbs, Изображения) и **issues[]** ниже. Они **обязаны** говорить одно и то же. Противоречие («H1 — зелёная галочка» в метриках и «H1 отсутствует» в issues) подрывает доверие ко всему отчёту.
+
+#### Источник истины — collector
+
+Все значения в `pages[].metrics` берутся **только из результата collector-скрипта (Фаза 1, шаг 2.4 — `[...document.querySelectorAll('h1')].map(...)`** и т.п.). Не редактируй, не «угадывай», не подставляй пустые значения, если collector вернул `null` — пиши `null`.
+
+#### Контракт по типам полей
+
+| Поле | Тип | Пустое значение |
+|---|---|---|
+| `title` | string \| null | `null` если нет тега |
+| `titleLen` | number \| null | `null` если нет |
+| `metaDesc` | string \| null | `null` |
+| `metaDescLen` | number \| null | `null` |
+| **`h1`** | **массив строк** | **`[]`** (никогда не строка, никогда не `null`) |
+| `h2Count`, `h3Count` | number | `0` |
+| `canonical` | string \| null | `null` |
+| `schemaTypes` | массив строк | `[]` |
+| `hasSchema`, `hasOpenGraph`, `hasBreadcrumbs`, `hasFavicon`, `hasCookieConsent` | boolean | `false` |
+| `imgsTotal`, `imgsNoAlt`, `imgsBroken` | number | `0` |
+| `aeoReadiness.firstParagraphWords` | number | `0` |
+| `badAnchors` | `{ count: number, examples: [] }` | `{count:0, examples:[]}` |
+
+⚠️ **Не пиши** `"h1": "Заголовок"` (строка) и **не пиши** `"h1": null`. Только массив. Это критично, потому что в JS пустая строка falsy, а пустой массив truthy — путаница приводит к зелёным галочкам там, где значение отсутствует.
+
+#### Правило согласованности `metrics` ↔ `issues[]`
+
+Перед сохранением `pages[]` для каждой страницы выполни внутренний чек: каждый critical/warning из `issues[]` должен **подтверждаться** соответствующим полем `metrics`. Если в issues стоит «H1 отсутствует», то `metrics.h1` обязан быть `[]`. Если в issues «Canonical отсутствует», то `metrics.canonical === null`. Если в issues «Schema.org отсутствует», то `metrics.schemaTypes === []` и `metrics.hasSchema === false`.
+
+| Issue | Обязательное состояние metrics |
+|---|---|
+| «H1 отсутствует / реализован через H2» | `h1: []` |
+| «Дубли H1 на странице» | `h1.length >= 2` |
+| «Title слишком длинный» | `titleLen > 60` |
+| «Title слишком короткий» | `titleLen < 30` или `titleLen === null` |
+| «Description слишком длинный» | `metaDescLen > 160` |
+| «Canonical отсутствует» | `canonical === null` |
+| «Schema.org разметка отсутствует» | `schemaTypes.length === 0`, `hasSchema === false` |
+| «Open Graph не настроен» | `hasOpenGraph === false` |
+| «Хлебные крошки отсутствуют» | `hasBreadcrumbs === false` |
+| «N изображений без alt» | `imgsNoAlt === N` |
+| «N битых картинок» | `imgsBroken === N` |
+
+Если обнаруживаешь конфликт — **доверяй collector-у, переписывай issue**, не наоборот. Collector — машинная истина с реального DOM; issue — твоя интерпретация, она могла быть скопирована из чернового анализа другой страницы.
+
+#### Правило согласованности `pages[]` ↔ `recommendations[]`
+
+Если ты выписал рекомендацию «Добавьте H1 на главную» (или подобную site-wide) — она должна ссылаться через `affectedUrls[]` или `sourceChecks[]` на конкретные страницы из `pages[]`, у которых `metrics.h1 === []`. Не выдумывай рекомендации, у которых нет подтверждения в `pages[].metrics` или в `technical[]`.
+
+#### Самопроверка перед сохранением JSON
+
+Прогоняй мысленный чек по каждой странице:
+1. Все поля `metrics` имеют корректный тип по контракту выше? (h1 — массив, canonical — string|null, и т.д.)
+2. Каждый critical/warning issue подтверждается полем metrics?
+3. Нет ли в metrics поля, которое противоречит issue (например, `hasOpenGraph: true`, но issue «OG не настроен»)?
+4. Если на странице нашлось N issue, но `metrics` показывает идеальное состояние — где-то ошибка, перепроверь сбор данных.
 
 ---
 

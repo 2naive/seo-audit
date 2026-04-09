@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.13.1';
+const SKILL_VERSION = '1.13.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -679,6 +679,31 @@ function buildHTML(data) {
         <span class="page-metric-label">${label}</span>
         <span class="page-metric-value">${esc(String(value ?? '—'))}</span>
       </div>`;
+
+    // Унифицированная нормализация: h1 — всегда массив (collector это гарантирует),
+    // но защищаемся от строки/null от несовместимых данных.
+    const h1Arr = Array.isArray(m.h1) ? m.h1 : (m.h1 ? [String(m.h1)] : []);
+    const h1Count = h1Arr.length;
+    let h1Display, h1Ok;
+    if (h1Count === 0) {
+      h1Display = 'нет'; h1Ok = false;
+    } else if (h1Count === 1) {
+      const t = String(h1Arr[0] || '').trim();
+      h1Display = t.length > 60 ? t.slice(0, 57) + '…' : (t || '✓ (пустой)');
+      h1Ok = t.length > 0;
+    } else {
+      h1Display = `${h1Count} шт. — дубль`; h1Ok = false;
+    }
+
+    // Title/Description — отрицательные значения тоже подсвечиваем (не только диапазон)
+    const titleOk = m.titleLen != null ? (m.titleLen >= 30 && m.titleLen <= 60) : null;
+    const descOk  = m.metaDescLen != null ? (m.metaDescLen >= 70 && m.metaDescLen <= 160) : null;
+    const titleVal = m.titleLen != null ? `${m.titleLen} симв.${m.titleLen > 60 ? ' (длинно)' : m.titleLen < 30 ? ' (коротко)' : ''}` : 'нет';
+    const descVal  = m.metaDescLen != null ? `${m.metaDescLen} симв.${m.metaDescLen > 160 ? ' (длинно)' : m.metaDescLen < 70 ? ' (коротко)' : ''}` : 'нет';
+
+    const schemaOk    = !!(m.schemaTypes && m.schemaTypes.length);
+    const schemaVal   = schemaOk ? m.schemaTypes.join(', ') : 'нет';
+
     return `
     <div class="page-card">
       <div class="page-card-header">
@@ -691,11 +716,11 @@ function buildHTML(data) {
         ${pt.matchedCount ? `<span class="page-type-count">${pt.matchedCount} ${pt.matchedCount === 1 ? 'страница этого типа' : pt.matchedCount < 5 ? 'страницы этого типа' : 'страниц этого типа'}</span>` : ''}
       </div>` : ''}
       <div class="page-metrics">
-        ${metricRow('Title', m.titleLen ? `${m.titleLen} симв.` : null, m.titleLen >= 30 && m.titleLen <= 60)}
-        ${metricRow('Description', m.metaDescLen ? `${m.metaDescLen} симв.` : null, m.metaDescLen >= 70 && m.metaDescLen <= 160)}
-        ${metricRow('H1', m.h1 ? '✓' : 'нет', !!m.h1)}
+        ${metricRow('Title', titleVal, m.titleLen == null ? false : titleOk)}
+        ${metricRow('Description', descVal, m.metaDescLen == null ? false : descOk)}
+        ${metricRow('H1', h1Display, h1Ok)}
         ${metricRow('Canonical', m.canonical ? '✓' : 'нет', !!m.canonical)}
-        ${metricRow('Schema.org', (m.schemaTypes && m.schemaTypes.length) ? m.schemaTypes.join(', ') : 'нет', !!(m.schemaTypes && m.schemaTypes.length))}
+        ${metricRow('Schema.org', schemaVal, schemaOk)}
         ${metricRow('Open Graph', m.hasOpenGraph ? '✓' : 'нет', !!m.hasOpenGraph)}
         ${metricRow('Хлебные крошки', m.hasBreadcrumbs ? '✓' : 'нет', !!m.hasBreadcrumbs)}
         ${m.imgsTotal != null ? metricRow('Изображения', `${m.imgsTotal} (без alt: ${m.imgsNoAlt || 0}, битых: ${m.imgsBroken || 0})`, (m.imgsNoAlt || 0) === 0 && (m.imgsBroken || 0) === 0) : ''}
