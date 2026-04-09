@@ -523,7 +523,7 @@ JSON.stringify({
   hasCookieConsent: !!document.querySelector('[class*="cookie" i], [id*="cookie" i], [class*="consent" i], [id*="consent" i], [class*="gdpr" i]'),
 
   // AEO readiness (17.2.1, 17.2.2): первые 1-2 абзаца ≤60 слов + есть ли FAQ
-  aeoReadiness: (() => { const firstP = document.querySelector('main p, article p, .content p, body p'); const wordCount = firstP ? firstP.textContent.trim().split(/\s+/).length : null; const hasFaqElement = !!document.querySelector('[class*="faq" i], [id*="faq" i], [itemtype*="FAQPage"]'); return { firstParagraphWords: wordCount, hasFaqSection: hasFaqElement }; })(),
+  aeoReadiness: (() => { const allP = [...document.querySelectorAll('main p, article p, .content p, body p')]; const firstReal = allP.map(p => p.textContent.trim()).find(t => t.split(/\s+/).filter(Boolean).length >= 5); const wordCount = firstReal ? firstReal.split(/\s+/).filter(Boolean).length : 0; const hasFaqElement = !!document.querySelector('[class*="faq" i], [id*="faq" i], [itemtype*="FAQPage"]'); return { firstParagraphWords: wordCount, hasFaqSection: hasFaqElement }; })(),
 
   // Первые 100 слов содержат ли ключ из H1 (5.7.1)
   first100WordsHasH1Keyword: (() => { const h1 = document.querySelector('h1')?.textContent.trim().toLowerCase(); if (!h1) return null; const first100 = (document.body.innerText || '').trim().split(/\s+/).slice(0, 100).join(' ').toLowerCase(); const h1Words = h1.split(/\s+/).filter(w => w.length > 3); return h1Words.some(w => first100.includes(w)); })(),
@@ -1636,7 +1636,7 @@ for role in [seo, dev, qa, devops, design, pm, total]:
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.14.1",
+  "skillVersion": "1.14.2",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,

@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.14.1';
+const SKILL_VERSION = '1.14.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -382,17 +382,34 @@ function buildHTML(data) {
       return ''; // нет ни одного AEO-сигнала — секцию не показываем
     }
 
+    // Склонение «слово / слова / слов»
+    const wordPlural = n => {
+      const m100 = n % 100, m10 = n % 10;
+      if (m100 >= 11 && m100 <= 14) return 'слов';
+      if (m10 === 1) return 'слово';
+      if (m10 >= 2 && m10 <= 4) return 'слова';
+      return 'слов';
+    };
+
+    // Минимальная длина «настоящего» лид-абзаца. Меньше — считаем что лида нет
+    // (collector в свежих версиях уже фильтрует <5, но защищаемся для legacy данных).
+    const MIN_LEAD_WORDS = 5;
+
     // Агрегаты по AEO-готовности страниц
     const totalAeo = aeoPages.length;
+    const noLead = aeoPages.filter(p => (p.metrics.aeoReadiness.firstParagraphWords || 0) < MIN_LEAD_WORDS).length;
     const longFirstP = aeoPages.filter(p => (p.metrics.aeoReadiness.firstParagraphWords || 0) > 60).length;
     const shortFirstP = aeoPages.filter(p => {
       const w = p.metrics.aeoReadiness.firstParagraphWords || 0;
-      return w > 0 && w <= 60;
+      return w >= MIN_LEAD_WORDS && w <= 60;
     }).length;
     const noFaq = aeoPages.filter(p => p.metrics.aeoReadiness.hasFaqSection === false).length;
     const withFaq = totalAeo - noFaq;
-    const avgFirstP = totalAeo > 0
-      ? Math.round(aeoPages.reduce((s, p) => s + (p.metrics.aeoReadiness.firstParagraphWords || 0), 0) / totalAeo)
+    // Среднее считаем только по страницам, где лид реально есть, чтобы один пустой <p>
+    // не утягивал среднее в 1 слово и не вводил клиента в заблуждение.
+    const realLeads = aeoPages.filter(p => (p.metrics.aeoReadiness.firstParagraphWords || 0) >= MIN_LEAD_WORDS);
+    const avgFirstP = realLeads.length > 0
+      ? Math.round(realLeads.reduce((s, p) => s + p.metrics.aeoReadiness.firstParagraphWords, 0) / realLeads.length)
       : 0;
 
     const blocked = Array.isArray(ai.blocked) ? ai.blocked : [];
@@ -427,8 +444,8 @@ function buildHTML(data) {
         </div>
         <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px">
           <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">Первый абзац</div>
-          <div style="font-size:20px;font-weight:700;color:${avgFirstP > 0 && avgFirstP <= 60 ? '#16a34a' : avgFirstP > 60 ? '#f59e0b' : '#dc2626'}">${avgFirstP || '—'} слов</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">средняя длина (норма для AI-ответов: ≤ 60 слов)</div>
+          <div style="font-size:20px;font-weight:700;color:${avgFirstP >= MIN_LEAD_WORDS && avgFirstP <= 60 ? '#16a34a' : avgFirstP > 60 ? '#f59e0b' : '#dc2626'}">${avgFirstP > 0 ? `${avgFirstP} ${wordPlural(avgFirstP)}` : 'нет лида'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${realLeads.length === 0 ? 'ни на одной странице нет полноценного лид-абзаца' : 'средняя длина (норма для AI-ответов: 5–60 слов)'}</div>
         </div>
       </div>
 
@@ -454,14 +471,19 @@ function buildHTML(data) {
         </thead>
         <tbody>
           <tr>
-            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц с первым абзацем ≤ 60 слов</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц с полноценным лид-абзацем (5–60 слов)</td>
             <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${shortFirstP === totalAeo ? '#16a34a' : shortFirstP === 0 ? '#dc2626' : '#f59e0b'}">${shortFirstP} / ${totalAeo}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">Короткий лид-абзац AI используют дословно как ответ. Длинный пересказывают своими словами или игнорируют.</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">Короткий лид-абзац AI используют дословно как ответ на запрос пользователя. Норма — 1–3 предложения с прямым ответом на интент страницы.</td>
           </tr>
           <tr>
             <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц с длинным первым абзацем (&gt; 60 слов)</td>
             <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${longFirstP === 0 ? '#16a34a' : '#f59e0b'}">${longFirstP} / ${totalAeo}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">Сократить лид до 1–3 предложений с прямым ответом на основной интент страницы.</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">Сократить лид до 1–3 предложений. Длинные вступления AI пересказывают своими словами или игнорируют.</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц без лид-абзаца (контент сразу с заголовков/списков)</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${noLead === 0 ? '#16a34a' : '#dc2626'}">${noLead} / ${totalAeo}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">Если страница начинается с картинок, заголовков или иконок без вводного абзаца — AI-движкам нечего извлечь как ответ. Добавить вводный текст в 1–3 предложения.</td>
           </tr>
           <tr>
             <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц с FAQ-секцией</td>
