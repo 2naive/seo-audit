@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.12.0';
+const SKILL_VERSION = '1.13.0';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -376,9 +376,6 @@ function buildHTML(data) {
   const effortEstimateHtml = data.effortEstimate ? (() => {
     const ee = data.effortEstimate;
     const pm = data.projectMeta || {};
-    const stages = ee.stages || [];
-    const totals = ee.totals || {};
-    const top = ee.topByRice || [];
 
     // 3 этапа соответствуют Roadmap (Срочно/Месяц/Стратегия)
     const stageColors = {
@@ -386,20 +383,73 @@ function buildHTML(data) {
       2: '#ea580c', // orange — Важные изменения
       3: '#16a34a', // green — Желательные улучшения
     };
+    const stageMeta = {
+      1: { label: 'Критичные блокеры', deadline: '1–2 недели' },
+      2: { label: 'Важные изменения',  deadline: 'до 30 дней' },
+      3: { label: 'Желательные улучшения', deadline: '1–3 месяца' },
+    };
+
+    // Сгруппируй пронумерованные рекомендации в этапы по фазам Roadmap.
+    // Это гарантирует, что число задач в этапах = число задач в Плане действий.
+    const phaseToStage = { urgent: 1, month: 2, strategy: 3 };
+    const stageRecs = { 1: [], 2: [], 3: [] };
+    numbered.forEach(r => {
+      const stage = phaseToStage[computePhase(r)] || 3;
+      stageRecs[stage].push(r);
+    });
+
+    // Часы конкретной задачи: число из estimateHours.total или парсинг effortHours
+    const taskHours = r => {
+      const t = r.estimateHours?.total;
+      if (typeof t === 'number' && t > 0) return t;
+      const m = String(r.effortHours || '').match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
+    // Сумма часов по ролям из estimateHours[] всех задач этапа + PM = ceil(0.23 × base)
+    const stageHours = stage => {
+      const recsArr = stageRecs[stage] || [];
+      const sum = { seo: 0, dev: 0, qa: 0, devops: 0, design: 0 };
+      recsArr.forEach(r => {
+        const eh = r.estimateHours || {};
+        sum.seo    += eh.seo    || 0;
+        sum.dev    += eh.dev    || 0;
+        sum.qa     += eh.qa     || 0;
+        sum.devops += eh.devops || 0;
+        sum.design += eh.design || 0;
+      });
+      const base = sum.seo + sum.dev + sum.qa + sum.devops + sum.design;
+      const pmH = base > 0 ? Math.ceil(0.23 * base) : 0;
+      return { ...sum, pm: pmH, total: base + pmH, taskCount: recsArr.length };
+    };
+
+    const s1 = stageHours(1);
+    const s2 = stageHours(2);
+    const s3 = stageHours(3);
+    const totals = {
+      seo:    s1.seo    + s2.seo    + s3.seo,
+      dev:    s1.dev    + s2.dev    + s3.dev,
+      qa:     s1.qa     + s2.qa     + s3.qa,
+      devops: s1.devops + s2.devops + s3.devops,
+      design: s1.design + s2.design + s3.design,
+      pm:     s1.pm     + s2.pm     + s3.pm,
+      total:  s1.total  + s2.total  + s3.total,
+    };
 
     // Отрисовка ячейки роли: пустые значения как тире, не "0"
     const cell = v => (v && v > 0) ? String(v) : '<span style="color:#cbd5e1">—</span>';
+    const taskWord = n => n === 1 ? 'задача' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'задачи' : 'задач');
 
-    const stageRows = stages.map(s => {
-      const h = s.hours || {};
+    const stageRow = (id, h) => {
+      const meta = stageMeta[id];
       return `
       <tr>
         <td style="padding:12px;border-bottom:1px solid #f1f5f9">
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:6px;height:32px;background:${stageColors[s.id] || '#64748b'};border-radius:2px;flex-shrink:0"></div>
+            <div style="width:6px;height:32px;background:${stageColors[id]};border-radius:2px;flex-shrink:0"></div>
             <div>
-              <div style="font-weight:700;font-size:13px">${s.id}. ${esc(s.label)}</div>
-              <div style="font-size:11px;color:var(--muted)">${esc(s.deadline || '')} · ${s.taskCount || 0} ${s.taskCount === 1 ? 'задача' : s.taskCount < 5 ? 'задачи' : 'задач'}</div>
+              <div style="font-weight:700;font-size:13px">${id}. ${meta.label}</div>
+              <div style="font-size:11px;color:var(--muted)">${meta.deadline} · ${h.taskCount} ${taskWord(h.taskCount)}</div>
             </div>
           </div>
         </td>
@@ -411,30 +461,46 @@ function buildHTML(data) {
         <td style="padding:12px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${cell(h.pm)}</td>
         <td style="padding:12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${h.total || 0}</td>
       </tr>`;
-    }).join('');
+    };
 
     const totalRow = `
       <tr style="background:#0f172a;color:#fff">
         <td style="padding:16px 12px;font-weight:800;font-size:14px">ИТОГО</td>
-        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.seo || 0}</td>
-        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.dev || 0}</td>
-        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.qa || 0}</td>
-        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.devops || 0}</td>
-        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.design || 0}</td>
-        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.pm || 0}</td>
-        <td style="padding:16px 12px;text-align:right;font-weight:900;font-size:18px;font-variant-numeric:tabular-nums;color:#fbbf24">${totals.total || 0} ч</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.seo}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.dev}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.qa}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.devops}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.design}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.pm}</td>
+        <td style="padding:16px 12px;text-align:right;font-weight:900;font-size:18px;font-variant-numeric:tabular-nums;color:#fbbf24">${totals.total} ч</td>
       </tr>`;
 
-    const topRows = top.slice(0, 10).map((t, i) => `
-      <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;width:32px;text-align:center;color:var(--muted);font-weight:600">${i + 1}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">
-          <a href="#rec-${esc(String(i+1))}" style="color:inherit;text-decoration:none">${esc(t.title)}</a>
-          ${t.stage ? `<span style="display:inline-block;margin-left:8px;padding:1px 6px;border-radius:3px;background:${stageColors[t.stage] || '#64748b'}22;color:${stageColors[t.stage] || '#64748b'};font-size:10px;font-weight:700">этап ${t.stage}</span>` : ''}
-        </td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${t.totalHours || 0} ч</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)">${(t.riceScore || 0).toFixed ? t.riceScore.toFixed(1) : t.riceScore}</td>
-      </tr>`).join('');
+    // Детальный список задач по этапам с часами на каждую задачу
+    const stageDetailBlock = (id, recsArr) => {
+      if (!recsArr.length) return '';
+      const meta = stageMeta[id];
+      const rows = recsArr.map(r => `
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;width:36px;text-align:center;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums">${r._num}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">
+            <a href="#rec-${r._num}" style="color:inherit;text-decoration:none">${esc(r.title)}</a>
+          </td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;white-space:nowrap">${taskHours(r)} ч</td>
+        </tr>`).join('');
+      return `
+      <div style="margin-top:18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:6px;height:20px;background:${stageColors[id]};border-radius:2px"></div>
+          <div style="font-weight:700;font-size:13px">${id}. ${meta.label}</div>
+          <div style="font-size:11px;color:var(--muted)">${meta.deadline} · ${recsArr.length} ${taskWord(recsArr.length)}</div>
+        </div>
+        <table style="font-size:13px">
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    };
+
+    const hasAnyTasks = (stageRecs[1].length + stageRecs[2].length + stageRecs[3].length) > 0;
 
     return `
     <div class="card" id="effort">
@@ -459,29 +525,18 @@ function buildHTML(data) {
           </tr>
         </thead>
         <tbody>
-          ${stageRows}
+          ${stageRow(1, s1)}
+          ${stageRow(2, s2)}
+          ${stageRow(3, s3)}
           ${totalRow}
         </tbody>
       </table>
 
-      ${top.length ? `
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:24px 0 10px">Топ-10 задач по приоритету</h3>
-      <p style="color:var(--muted);font-size:12px;margin-bottom:8px">Сортировка по соотношению эффекта на единицу трудозатрат.</p>
-      <table style="font-size:13px">
-        <thead>
-          <tr>
-            <th style="text-align:center;width:32px">#</th>
-            <th style="text-align:left">Задача</th>
-            <th style="text-align:right;width:80px">Часы</th>
-            <th style="text-align:right;width:80px">Приоритет</th>
-          </tr>
-        </thead>
-        <tbody>${topRows}</tbody>
-      </table>` : ''}
-
-      <div style="margin-top:18px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e">
-        <strong>Дисклеймер</strong>: оценка ориентировочная. Реальные часы зависят от доступа к коду и инфраструктуре, скорости согласований. Не включает: стоимость согласований на стороне клиента (типично +30% к календарному сроку), миграционные риски сверх перечисленных.
-      </div>
+      ${hasAnyTasks ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:24px 0 6px">Задачи по этапам с часами</h3>
+      ${stageDetailBlock(1, stageRecs[1])}
+      ${stageDetailBlock(2, stageRecs[2])}
+      ${stageDetailBlock(3, stageRecs[3])}` : ''}
     </div>`;
   })() : '';
 
@@ -589,8 +644,8 @@ function buildHTML(data) {
       <li><a href="#exec-summary">Главное · оценка ${grade}</a></li>
       <li><a href="#scores">Оценки по 10 категориям</a></li>
       ${(lighthouse && lighthouse.available) ? `<li><a href="#lighthouse">Lighthouse — производительность</a></li>` : ''}
-      ${data.effortEstimate ? `<li><a href="#effort">Оценка трудозатрат · ${data.effortEstimate.totals?.withReserve || data.effortEstimate.totals?.subtotal || '?'} ч</a></li>` : ''}
       ${recs.length ? `<li><a href="#roadmap">План действий — ${urgentRecs.length + monthRecs.length + strategyRecs.length} задач в 3 фазах</a></li>` : ''}
+      ${data.effortEstimate ? `<li><a href="#effort">Оценка трудозатрат на внедрение</a></li>` : ''}
       ${recs.length ? `<li><a href="#recs">Детализация ${recs.length} рекомендаций</a></li>` : ''}
       ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'типа страниц' : pages.length < 5 ? 'типов страниц' : 'типов страниц'}</a></li>` : ''}
       ${(technical && technical.length) ? `<li><a href="#technical">Технические проверки по блокам</a></li>` : ''}
@@ -967,8 +1022,8 @@ function buildHTML(data) {
   ${statsHtml}
   ${scoresHtml}
   ${lhHtml}
-  ${effortEstimateHtml}
   ${roadmapHtml}
+  ${effortEstimateHtml}
   ${recsHtml}
   ${pagesHtml}
   ${techHtml}
