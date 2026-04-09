@@ -780,7 +780,13 @@ if (fs.existsSync(mobilePath)) {
 
 1. `mcp__claude-in-chrome__navigate` (тот же tabId) → `sampleUrl` типа
 2. Дождись загрузки
-3. Выполни тот же JS-сборщик из шага 2.1 через `mcp__claude-in-chrome__javascript_tool` — собери все метрики (title, h1, schema, badAnchors и т.д.)
+3. Выполни **ВЕСЬ JS-сборщик из шага 2.1 целиком, без сокращений** через `mcp__claude-in-chrome__javascript_tool`. Запрещено:
+   - ❌ оставлять только title/h1/canonical (это «упрощённый» сбор — нарушение)
+   - ❌ опускать `badAnchors`, `bodyTextLen`, `domSize`, `semanticTags`, `aeoReadiness`, `formsHttps`, `protocolRelativeCount`, `hasCookieConsent`, `hasFavicon`, `imgDetails`, `brokenImgSrcs`, `anchorFrequency`, `first100WordsHasH1Keyword`
+   - ❌ заменять JS-сборщик на «упрощённую версию для внутренних страниц»
+   
+   Все 50+ полей из шага 2.1 должны быть собраны для **каждой** страницы в `pages[]`. Это критично для Правил 11 и 13 (без полей не сработают условия).
+
 4. Сохрани результат как один объект в `pages[]` JSON-схемы со всеми полями `metrics{...}` + добавь:
    - `pageType.pattern` — нормализованный URL pattern из шага 1.12
    - `pageType.matchedCount` — сколько страниц этого типа найдено в sitemap
@@ -789,6 +795,8 @@ if (fs.existsSync(mobilePath)) {
 **Скриншоты дополнительных страниц не делаются** — только главная имеет `desktop-*.webp` и `mobile-*.jpg`. Для остальных типов — только метрики.
 
 **Если шаг 1.12 не выполнен** (sitemap недоступен и нет внутренних ссылок) — fallback: проанализируй главную + 2 страницы из навигационного меню.
+
+**Финальная проверка перед Фазой 3**: пройдись по всем `pages[i].metrics` и убедись что есть `badAnchors`, `bodyTextLen`, `domSize`, `aeoReadiness` для **каждой** страницы. Если нет — повтори JS-сборщик целиком на этой странице.
 
 ### 2.5 Проверка Schema.org (детальная)
 На главной проверь и валидируй Schema.org через `mcp__claude-in-chrome__javascript_tool`:
@@ -1438,7 +1446,7 @@ withReserve = subtotal + reserveSum + managementHours
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.10.1",
+  "skillVersion": "1.10.2",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
