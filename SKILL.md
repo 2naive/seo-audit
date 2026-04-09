@@ -1446,7 +1446,7 @@ withReserve = subtotal + reserveSum + managementHours
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.10.2",
+  "skillVersion": "1.10.3",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1741,7 +1741,7 @@ withReserve = subtotal + reserveSum + managementHours
 
 ```markdown
 # SEO Аудит: [ДОМЕН]
-**Дата**: [YYYY-MM-DD HH:MM] | **Сайт**: [URL] | **Оценка**: [A/B/C/D/F] ([X.X/10])
+**Дата**: [YYYY-MM-DD] | **Сайт**: [URL] | **Оценка**: [A/B/C/D/F] ([X.X/10])
 **Подготовлено**: itsoft.ru · pharm-studio.ru · nedzelsky.pro · v1.10.1
 
 > [⚠️ Базовый режим / ✅ Полный режим Chrome + Lighthouse]

@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.10.2';
+const SKILL_VERSION = '1.10.3';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -155,6 +155,8 @@ function buildHTML(data) {
 
   const stats = summary ?? {};
   const reportVersion = data.skillVersion || SKILL_VERSION;
+  // Дата без времени — точное время до минуты намекает на автоматическую генерацию
+  const dateOnly = (date || '').slice(0, 10);
   const grade = executiveSummary?.grade || (parseFloat(totalScore) >= 9 ? 'A' : parseFloat(totalScore) >= 7.5 ? 'B' : parseFloat(totalScore) >= 6 ? 'C' : parseFloat(totalScore) >= 4 ? 'D' : 'F');
 
   // Phase grouping for Roadmap (auto-fallback if phase missing)
@@ -184,7 +186,7 @@ function buildHTML(data) {
     <div class="cover-content">
       <div class="cover-brand">SEO Audit</div>
       <div class="cover-domain">${esc(url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</div>
-      <div class="cover-date">${esc(date)}</div>
+      <div class="cover-date">${esc(dateOnly)}</div>
       <div class="cover-grade-wrap">
         <div class="cover-grade-label">Общая оценка</div>
         <div class="cover-grade" style="color:${gradeColor(grade)}">${grade}</div>
@@ -759,7 +761,7 @@ function buildHTML(data) {
       <strong>Что вошло в проверку:</strong> мета-теги и On-Page элементы, структурированные данные Schema.org, Open Graph, Core Web Vitals и производительность, мобильная оптимизация, краулинг и индексирование, технические HTTP-заголовки, JS-рендеринг, внутренняя перелинковка, аналитика и верификации, AEO/GEO готовность для AI-поиска.
     </p>
     <p>
-      <strong>Дата:</strong> ${esc(date)} · <strong>Версия:</strong> v${reportVersion}
+      <strong>Дата:</strong> ${esc(dateOnly)} · <strong>Версия:</strong> v${reportVersion}
     </p>
     <p style="margin-top:12px">
       <strong>Контакты для углублённого аудита:</strong>
@@ -772,7 +774,7 @@ function buildHTML(data) {
     <a href="https://itsoft.ru">itsoft.ru</a> ·
     <a href="https://pharm-studio.ru">pharm-studio.ru</a> ·
     <a href="https://nedzelsky.pro">nedzelsky.pro</a>
-    · ${esc(url)} · ${esc(date)} · <span style="font-family:monospace">v${reportVersion}</span>
+    · ${esc(url)} · ${esc(dateOnly)} · <span style="font-family:monospace">v${reportVersion}</span>
   </div>`;
 
   // ── Assemble final HTML ─────────────────────────────────────────────────────
