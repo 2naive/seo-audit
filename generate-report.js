@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.15.0';
+const SKILL_VERSION = '1.15.1';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -147,6 +147,49 @@ const BLOCK_NAMES = {
   '20': 'Доступность (WCAG)',
   '21': 'HTML-структура',
 };
+
+// ── Rule 14 lint: forbidden phrases that leak market segmentation ────────────
+// Запрещено в любом client-facing поле. Renderer проверяет и пишет stderr-warning
+// со списком нарушений, чтобы оператор увидел утечки до отправки клиенту.
+const RULE_14_FORBIDDEN = [
+  /RU[-‑]сайт/i, /RU[-‑]рынок/i, /\bдля RU\b/i, /\bна RU\b/i, /\(RU\)/, /\(market=ru\)/i, /\(market=intl\)/i,
+  /российск/i, /\bдля России\b/i,
+  /международн[ыо]й рынок/i, /зарубежн[ыо]й сайт/i,
+  /152[-‑]?ФЗ/i, /152 ФЗ/i,
+  /Роскомнадзор/i,
+  /\bКоАП\b/i, /ст\.\s*13\.11/i,
+  /требований РФ/i, /закону РФ/i, /закона РФ/i,
+];
+function lintRule14(data) {
+  const violations = [];
+  const check = (path, text) => {
+    if (typeof text !== 'string' || !text) return;
+    for (const re of RULE_14_FORBIDDEN) {
+      const m = text.match(re);
+      if (m) violations.push({ path, phrase: m[0], snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 40) });
+    }
+  };
+  (data.recommendations || []).forEach((r, i) => {
+    ['title', 'description', 'impact', 'verify'].forEach(f => check(`recommendations[${i}].${f}`, r[f]));
+    (r.steps || []).forEach((s, j) => check(`recommendations[${i}].steps[${j}]`, s));
+  });
+  (data.technical || []).forEach((t, i) => check(`technical[${i}].value`, t.value));
+  Object.entries(data.scoreDetails || {}).forEach(([cat, items]) => {
+    (items || []).forEach((s, j) => check(`scoreDetails["${cat}"][${j}]`, s));
+  });
+  (data.strengths || []).forEach((s, i) => check(`strengths[${i}]`, s));
+  (data.risks || []).forEach((s, i) => check(`risks[${i}]`, s));
+  if (data.executiveSummary) {
+    check('executiveSummary.headline', data.executiveSummary.headline);
+    check('executiveSummary.onePhrase', data.executiveSummary.onePhrase);
+  }
+  if (violations.length) {
+    process.stderr.write(`\n⚠️  Rule 14 violations: ${violations.length} forbidden phrase(s) leak market segmentation to client text:\n`);
+    violations.slice(0, 20).forEach(v => process.stderr.write(`   • ${v.path}: «${v.phrase}» — …${v.snippet}…\n`));
+    if (violations.length > 20) process.stderr.write(`   …and ${violations.length - 20} more\n`);
+    process.stderr.write(`   See SKILL.md → Правило 14 → таблица замен. Fix the source JSON before sending the report to the client.\n\n`);
+  }
+}
 
 // ── Lighthouse metric tooltips ────────────────────────────────────────────────
 const LH_METRIC_DESC = {
@@ -1256,6 +1299,9 @@ const datetime = (data.date || new Date().toISOString().slice(0, 16))
 const baseName = `seo-report-${domain}-${datetime}`;
 const htmlPath  = resolve(outputDir, `${baseName}.html`);
 const pdfPath   = resolve(outputDir, `${baseName}.pdf`);
+
+// Pre-render lint: проверь Rule 14 (запрет утечек market segmentation)
+lintRule14(data);
 
 // Write HTML
 const html = buildHTML(data);
