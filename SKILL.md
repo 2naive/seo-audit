@@ -1271,12 +1271,13 @@ for each page in pages:
 ### Правило 12 — Coverage блоков
 
 `coverage.blocksCovered` — блоки которые скилл проверяет автоматически. Стандартный набор для обычного RU-сайта:
-- Блоки 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 21 (обычно 13 блоков)
+- Блоки 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, **17**, 21 (обычно 14 блоков)
 
 **Уточнение по блокам с частичным покрытием**:
 - **Блок 11 (JS-рендеринг)** — покрыт частично: проверяем `JS-зависимость контента` (сравнение raw HTML vs DOM). Не покрыто: SSR/SSG-настройки фреймворков, Google URL Inspection
 - **Блок 12 (Скрытый контент)** — покрыт частично: hiddenTextElements + zeroSizeLinks через JS. Не покрыто: cloaking detection (сравнение user-agent vs Googlebot ответов)
 - **Блок 8 (E-E-A-T)** — покрыт по сигналам (footer, страницы Контакты/О компании/Политика, авторы), но качественная оценка контента — экспертная
+- **Блок 17 (AEO / GEO / AI-поиск)** — покрыт по сигналам: `siteData.llmsTxt`, `siteData.aiCrawlers`, `pages[].metrics.aeoReadiness` (длина лид-абзаца, наличие FAQ-секции). Отображается отдельной секцией «AEO / GEO — готовность к AI-поиску» в отчёте. Если хотя бы один из этих сигналов собран — обязан быть в `blocksCovered`
 
 `coverage.blocksManual` — блоки требующие ручной работы / доступа к внешним системам:
 - Блок 14 (off-page / ссылочный профиль) — нужен Ahrefs/Semrush/GSC API
@@ -1636,7 +1637,7 @@ for role in [seo, dev, qa, devops, design, pm, total]:
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.14.2",
+  "skillVersion": "1.14.3",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,

@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.14.2';
+const SKILL_VERSION = '1.14.3';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -83,9 +83,26 @@ function difficultyBadge(d) {
   return `<span style="background:${bg};color:${color};padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700">Сложность: ${label}</span>`;
 }
 
-function effortBadge(hours) {
-  if (!hours) return '';
-  return `<span style="background:#f1f5f9;color:#475569;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700">⏱ ${esc(hours)}</span>`;
+// Склонение «час / часа / часов»
+function hourPlural(n) {
+  const m100 = n % 100, m10 = n % 10;
+  if (m100 >= 11 && m100 <= 14) return 'часов';
+  if (m10 === 1) return 'час';
+  if (m10 >= 2 && m10 <= 4) return 'часа';
+  return 'часов';
+}
+
+// Бейдж часов: всегда выводим число из estimateHours.total (единый источник истины).
+// Текстовое поле rec.effortHours игнорируется — раньше оно расходилось с total
+// (например, "5 часов" при total=6), что вводило клиента в заблуждение.
+function effortBadge(rec) {
+  const n = rec && rec.estimateHours && typeof rec.estimateHours.total === 'number' ? rec.estimateHours.total : null;
+  if (!n || n <= 0) {
+    // Fallback на legacy текстовое поле, если estimateHours отсутствует
+    if (!rec || !rec.effortHours) return '';
+    return `<span style="background:#f1f5f9;color:#475569;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700">⏱ ${esc(rec.effortHours)}</span>`;
+  }
+  return `<span style="background:#f1f5f9;color:#475569;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700">⏱ ${n} ${hourPlural(n)}</span>`;
 }
 
 function categoryBadge(category, label) {
@@ -726,7 +743,7 @@ function buildHTML(data) {
           <div class="rec-badges">
             ${r.priority ? priorityBadge(r.priority) : ''}
             ${r.difficulty ? difficultyBadge(r.difficulty) : ''}
-            ${effortBadge(r.effortHours)}
+            ${effortBadge(r)}
             ${categoryBadge(r.category, r.categoryLabel)}
           </div>
         </div>
@@ -862,12 +879,19 @@ function buildHTML(data) {
     </div>`;
   }
   const pts = data.pageTypeStats;
+  // Honest counts: показываем «всего уникальных типов» только если значение
+  // действительно > pages.length, иначе агент мог завысить totalTypes (был баг
+  // на maxilac.ru: totalTypes=5 при реальных 4 уникальных шаблонах). skippedTypes
+  // тоже пересчитываем сами — агентский self-report игнорируем.
+  const realTotalTypes = pts && pts.totalTypes && pts.totalTypes > pages.length ? pts.totalTypes : pages.length;
+  const realSkipped = Math.max(0, realTotalTypes - pages.length);
+  const showTotalTypesNote = realTotalTypes > pages.length;
   const pagesHtml = (pages && pages.length) ? `
   <div class="card" id="pages">
     <h2>Анализ уникальных типов страниц</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:16px">
-      Проанализировано <strong>${pages.length}</strong> ${pages.length === 1 ? 'тип' : pages.length < 5 ? 'типа' : 'типов'} страниц${pts && pts.totalUrls ? ` из <strong>${pts.totalUrls}</strong> URL в sitemap` : ''}${pts && pts.totalTypes ? ` (всего уникальных типов: <strong>${pts.totalTypes}</strong>)` : ''}.
-      ${pts && pts.skippedTypes > 0 ? `<br><span style="color:#92400e">⚠ Дополнительно ${pts.skippedTypes} ${pts.skippedTypes === 1 ? 'тип' : 'типов'} страниц вынесены в углублённый этап анализа.</span>` : ''}
+      Проанализировано <strong>${pages.length}</strong> ${pages.length === 1 ? 'тип' : pages.length < 5 ? 'типа' : 'типов'} страниц${pts && pts.totalUrls ? ` из <strong>${pts.totalUrls}</strong> URL в sitemap` : ''}${showTotalTypesNote ? ` (всего уникальных типов: <strong>${realTotalTypes}</strong>)` : ''}.
+      ${realSkipped > 0 ? `<br><span style="color:#92400e">⚠ Дополнительно ${realSkipped} ${realSkipped === 1 ? 'тип' : realSkipped < 5 ? 'типа' : 'типов'} страниц ${realSkipped === 1 ? 'вынесен' : 'вынесены'} в углублённый этап анализа.</span>` : ''}
     </p>
     <div class="pages-grid">${pages.map(p => pageCard(p)).join('')}</div>
   </div>` : '';
