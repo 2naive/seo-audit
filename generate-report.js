@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.10.0';
+const SKILL_VERSION = '1.10.1';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -207,7 +207,7 @@ function buildHTML(data) {
   <div class="card how-to-read" id="how-to-read">
     <h2>Как читать этот отчёт</h2>
     <p style="color:#475569;margin-bottom:14px;font-size:14px;line-height:1.6">
-      Отчёт построен на синтезе 40+ источников и мастер-чеклисте из 374 пунктов в 21 блоке. Каждая рекомендация автоматически приоритизирована по влиянию на SEO и сложности внедрения.
+      Отчёт построен на мастер-чеклисте из 374 проверок в 21 блоке. Каждая рекомендация приоритизирована по влиянию на SEO и сложности внедрения.
     </p>
     <div class="legend-grid">
       <div class="legend-card">
@@ -268,7 +268,7 @@ function buildHTML(data) {
 
   // ── Section: Stats grid + coverage ──────────────────────────────────────────
   const coverageInfo = coverage
-    ? `Автоматически: ${coverage.automatedCount || coverage.blocksCovered?.length || 0} блоков · Ручная работа: ${coverage.manualCount || coverage.blocksManual?.length || 0} блоков`
+    ? `Покрыто в этом отчёте: ${coverage.automatedCount || coverage.blocksCovered?.length || 0} блоков · Требует отдельной работы: ${coverage.manualCount || coverage.blocksManual?.length || 0} блоков`
     : '';
   const statsHtml = `
   <div class="stat-grid">
@@ -457,7 +457,7 @@ function buildHTML(data) {
     <div class="card" id="effort">
       <h2>Оценка трудозатрат на внедрение</h2>
       <p style="color:#475569;font-size:14px;margin-bottom:6px">
-        Оценка составлена на основе baseline-часов отраслевых публикаций × множителей под CMS, объём сайта, сложность правок и QA. Без учёта стоимости согласований на стороне клиента.
+        Оценка построена на отраслевых baseline-часах с поправками на CMS, объём сайта, сложность правок и QA. Без учёта согласований на стороне клиента.
       </p>
       ${pm.cms || pm.size ? `<p style="color:var(--muted);font-size:12px;margin-bottom:18px">CMS: <strong>${esc(pm.cms || '?')}</strong> · Размер сайта: <strong>${esc(pm.size || '?')}</strong>${pm.totalUrls ? ` (${pm.totalUrls} URL в sitemap)` : ''}</p>` : ''}
 
@@ -497,7 +497,7 @@ function buildHTML(data) {
       </table>` : ''}
 
       <div style="margin-top:18px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e">
-        <strong>Дисклеймер</strong>: оценка ориентировочная. Baseline-часы — отраслевые средние; реальное время зависит от velocity команды, доступа к коду / инфраструктуре, скорости согласований. Типично калибровка под конкретную команду требует 2–3 проектов. Не включает: стоимость согласований клиента (+30% к календарному сроку), миграционные риски сверх перечисленных.
+        <strong>Дисклеймер</strong>: оценка ориентировочная. Реальные часы зависят от velocity команды, доступа к коду и инфраструктуре, скорости согласований. Не включает: стоимость согласований на стороне клиента (типично +30% к календарному сроку), миграционные риски сверх перечисленных.
       </div>
     </div>`;
   })() : '';
@@ -612,7 +612,7 @@ function buildHTML(data) {
       ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'типа страниц' : pages.length < 5 ? 'типов страниц' : 'типов страниц'}</a></li>` : ''}
       ${(technical && technical.length) ? `<li><a href="#technical">Технические проверки по блокам</a></li>` : ''}
       ${(desktopSrc || mobileSrc) ? `<li><a href="#screenshots">Скриншоты сайта</a></li>` : ''}
-      ${(notChecked && notChecked.length) ? `<li><a href="#not-checked">Что не проверялось</a></li>` : ''}
+      ${(notChecked && notChecked.length) ? `<li><a href="#not-checked">За рамками этого отчёта</a></li>` : ''}
       <li><a href="#methodology">Методология</a></li>
     </ol>
   </div>`;
@@ -676,7 +676,7 @@ function buildHTML(data) {
     <h2>Анализ уникальных типов страниц</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:16px">
       Проанализировано <strong>${pages.length}</strong> ${pages.length === 1 ? 'тип' : pages.length < 5 ? 'типа' : 'типов'} страниц${pts && pts.totalUrls ? ` из <strong>${pts.totalUrls}</strong> URL в sitemap` : ''}${pts && pts.totalTypes ? ` (всего уникальных типов: <strong>${pts.totalTypes}</strong>)` : ''}.
-      ${pts && pts.skippedTypes > 0 ? `<br><span style="color:#92400e">⚠ Пропущено ${pts.skippedTypes} ${pts.skippedTypes === 1 ? 'тип' : 'типов'} (лимит 20 на один аудит).</span>` : ''}
+      ${pts && pts.skippedTypes > 0 ? `<br><span style="color:#92400e">⚠ Дополнительно ${pts.skippedTypes} ${pts.skippedTypes === 1 ? 'тип' : 'типов'} страниц вынесены в углублённый этап анализа.</span>` : ''}
     </p>
     <div class="pages-grid">${pages.map(p => pageCard(p)).join('')}</div>
   </div>` : '';
@@ -720,11 +720,11 @@ function buildHTML(data) {
     <p style="color:#64748b;font-size:12px;margin-bottom:14px">Показана верхняя часть страницы (above-the-fold). Полные скриншоты — в отдельных файлах рядом с отчётом.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
       ${desktopSrc ? `<div>
-        <div class="screenshot-label">Десктоп · 1350×940 (Lighthouse desktop preset)</div>
+        <div class="screenshot-label">Десктоп · viewport 1350 × 940</div>
         <div class="screenshot-frame"><img src="${desktopSrc}" alt="Desktop screenshot"></div>
       </div>` : ''}
       ${mobileSrc ? `<div>
-        <div class="screenshot-label">Мобильный · 412×823 (Lighthouse mobile)</div>
+        <div class="screenshot-label">Мобильный · viewport 412 × 823</div>
         <div class="screenshot-frame"><img src="${mobileSrc}" alt="Mobile screenshot"></div>
       </div>` : ''}
     </div>
@@ -733,9 +733,9 @@ function buildHTML(data) {
   // ── Section: Not checked / scope disclosure ─────────────────────────────────
   const notCheckedHtml = (notChecked && notChecked.length) ? `
   <div class="card not-checked" id="not-checked">
-    <h2>Что не проверялось автоматически</h2>
+    <h2>За рамками этого отчёта</h2>
     <p style="color:#475569;font-size:14px;margin-bottom:14px">
-      Часть проверок мастер-чеклиста требует доступа к внешним системам (Google Search Console, Яндекс.Вебмастер, Ahrefs) или ручной экспертной оценки. Эти разделы не входят в автоматический аудит:
+      Часть проверок мастер-чеклиста требует доступа к внешним системам (Google Search Console, Яндекс.Вебмастер, Ahrefs) или углублённой экспертной оценки. Эти разделы вынесены в отдельный этап работ:
     </p>
     <ul class="not-checked-list">
       ${notChecked.map(n => `<li>${esc(n)}</li>`).join('')}
@@ -753,13 +753,13 @@ function buildHTML(data) {
   <div class="card methodology" id="methodology">
     <h2>Методология</h2>
     <p>
-      Аудит построен на синтезе <strong>40+ источников</strong> (Semrush, Ahrefs, Moz, Google, Brightter, Wellows, NoGood, GitHub-стандарты) и <strong>мастер-чеклисте из 374 пунктов в 21 блоке</strong>.
+      Отчёт построен на мастер-чеклисте из <strong>374 проверок в 21 блоке</strong> — синтезе ведущих SEO-источников (Google Search Central, Semrush, Ahrefs, Moz, Backlinko, Wellows, Brightter, NoGood) и стандартов W3C / Schema.org.
     </p>
     <p>
-      <strong>Инструменты сбора:</strong> Lighthouse 12+ (mobile + desktop preset), curl HTTP-проверки, WebFetch raw HTML, Chrome DevTools для JS-рендеринга и DOM-анализа.
+      <strong>Что вошло в проверку:</strong> мета-теги и On-Page элементы, структурированные данные Schema.org, Open Graph, Core Web Vitals и производительность, мобильная оптимизация, краулинг и индексирование, технические HTTP-заголовки, JS-рендеринг, внутренняя перелинковка, аналитика и верификации, AEO/GEO готовность для AI-поиска.
     </p>
     <p>
-      <strong>Версия скилла:</strong> v${reportVersion}. <strong>Дата проведения:</strong> ${esc(date)}.
+      <strong>Дата:</strong> ${esc(date)} · <strong>Версия:</strong> v${reportVersion}
     </p>
     <p style="margin-top:12px">
       <strong>Контакты для углублённого аудита:</strong>

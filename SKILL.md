@@ -1048,6 +1048,20 @@ for each page in pages:
 
 Эти правила определяют клиентское качество отчёта. Соблюдай каждое.
 
+### ⚠️ Правило 0 — Тон отчёта (маркетинговая подача)
+
+Отчёт **не должен подчёркивать**, что он сгенерирован автоматически или с помощью инструмента — это снижает воспринимаемую ценность работы. Запрещённые формулировки в текстах для клиента (`title`, `description`, `impact`, `executiveSummary.headline`, `strengths[]`, `risks[]`, `notChecked[]`, `summary`):
+
+- ❌ «автоматический аудит», «автоматически проверено», «инструмент проверил»
+- ❌ «скилл», «skill», «AI», «нейросеть», «ChatGPT», «Claude», «генератор отчётов»
+- ❌ «sub-agent», «фаза 1/2/3», «Lighthouse desktop preset», «JS-сборщик»
+- ❌ «лимит N в один аудит», «sub-agent fork», «версия скилла»
+- ❌ «мы не проверяли», «не получилось проверить» — заменяй на «требует углублённой работы», «вынесено в отдельный этап»
+
+Допустимо упоминание **отраслевых инструментов** только если речь о методологии или эталонах: Lighthouse как отраслевой стандарт CWV, Google Search Central как источник, Ahrefs/Semrush как промышленный benchmark. Но не «мы прогнали через Lighthouse».
+
+Пиши так, как будто отчёт подготовил эксперт по SEO. Версию указывай как `v1.10.1` без слов «скилл» / «инструмент» / «генератор».
+
 ### Правило 1 — Каждая рекомендация имеет 7 обязательных полей
 
 | Поле | Назначение | Пример |
@@ -1424,7 +1438,7 @@ withReserve = subtotal + reserveSum + managementHours
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.10.0",
+  "skillVersion": "1.10.1",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1720,7 +1734,7 @@ withReserve = subtotal + reserveSum + managementHours
 ```markdown
 # SEO Аудит: [ДОМЕН]
 **Дата**: [YYYY-MM-DD HH:MM] | **Сайт**: [URL] | **Оценка**: [A/B/C/D/F] ([X.X/10])
-**Инструмент**: itsoft.ru · pharm-studio.ru · nedzelsky.pro · v1.8.0
+**Подготовлено**: itsoft.ru · pharm-studio.ru · nedzelsky.pro · v1.10.1
 
 > [⚠️ Базовый режим / ✅ Полный режим Chrome + Lighthouse]
 
@@ -1870,9 +1884,9 @@ withReserve = subtotal + reserveSum + managementHours
 
 ---
 
-## Что не проверялось автоматически
+## За рамками этого отчёта
 
-[notChecked — список ручных проверок с пояснениями]
+[notChecked — список проверок вынесенных в отдельный этап]
 
 Для углублённого анализа этих блоков обращайтесь: itsoft.ru · pharm-studio.ru · nedzelsky.pro
 
@@ -1886,9 +1900,9 @@ withReserve = subtotal + reserveSum + managementHours
 
 ## Методология
 
-Аудит построен на синтезе 40+ источников и мастер-чеклисте из 374 пунктов в 21 блоке. Инструменты сбора: Lighthouse 12+, curl, WebFetch, Chrome DevTools.
+Отчёт построен на мастер-чеклисте из 374 проверок в 21 блоке — синтезе ведущих SEO-источников (Google Search Central, Semrush, Ahrefs, Moz, Backlinko, Wellows, Brightter, NoGood) и стандартов W3C / Schema.org.
 
-**Версия скилла**: v1.8.0
+**Дата**: [date] · **Версия**: v1.10.1
 ```
 
 ### HTML + PDF отчёт
