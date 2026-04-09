@@ -1,5 +1,62 @@
 # Changelog — SEO Audit Skill
 
+## [1.10.0] — 2026-04-09 — Блок оценки трудозатрат на внедрение
+
+Минорный релиз на основе материалов из папки `Оценка/` (готовый алгоритм, baseline-таблица часов из отраслевых публикаций, RICE-приоритизация). Добавляет смету для клиента в человеко-часах без указания цен.
+
+### Added — JSON-схема расширена
+
+**Новые поля в `recommendations[]`**:
+- `taskType` — закрытый словарь из 17 типов: meta_tags, canonical, redirect, schema, cwv, robots, sitemap, hreflang, duplicates, linking, http_codes, mobile, alt_images, security, analytics, eeat, other
+- `scope` — single / template / site_wide
+- `estimateHours: { dev, seo, qa, content, total }` — детальная разбивка часов по ролям
+- `riceScore` — приоритет по формуле RICE: (Reach × Impact × Confidence) / Effort
+- `stage` — 1/2/3/4 (блокеры / pattern fixes / site-wide / полировка)
+
+**Новые верхнеуровневые поля**:
+- `projectMeta { cms, size, totalUrls, isMigration }` — метаданные проекта для множителей
+- `effortEstimate { stages[], reservePercent, reserveHours, managementHours, totals, topByRice[] }` — итоговая смета
+
+### Added — Правило 13 в Фазе 3 SKILL.md (8 шагов оценки)
+
+1. **13.1** Определение `taskType` и `scope` для каждой рекомендации (закрытые словари)
+2. **13.2** Baseline-таблица часов: 17 типов × 3 scope (single/template/site_wide). Берётся из примеров смет (Rush Analytics, DejaFlow, Wellows, NAV43)
+3. **13.3** Множители `effort = baseline × M_scale × M_cms × M_risk × M_qa`:
+   - M_scale: 1.0–2.0 по `affectedUrls`
+   - M_cms: 1.0–1.6 по типу CMS
+   - M_risk: 1.0–1.5 по scope (миграция → 1.5)
+   - M_qa: 1.0–1.25 (с регрессионным QA → +25%)
+4. **13.4** Распределение по ролям (Dev/SEO/QA/Content) — таблица процентов для каждого taskType
+5. **13.5** RICE-формула с конкретными источниками значений
+6. **13.6** Группировка в 4 этапа по severity и priority
+7. **13.7** Резерв на неопределённость по `projectMeta.size` (15–40%) + менеджмент (~10% Dev+SEO)
+8. **13.8** Топ-10 задач по RICE-score
+
+### Added — Секция «Оценка трудозатрат на внедрение» в HTML
+
+Новая функция `effortEstimateHtml` в `generate-report.js`. Содержит:
+- **CMS / размер сайта** в подзаголовке
+- **Сводка по этапам** — таблица 4 этапа × роли (Dev/SEO/QA/Content/Всего) с цветными бейджами этапов (красный/оранжевый/зелёный/серый)
+- **Резерв** — отдельная строка на жёлтом фоне с указанием процента и размера проекта
+- **Менеджмент** — строка на синем фоне (~10% Dev+SEO)
+- **ИТОГО** — чёрная строка с золотым акцентом для общего числа часов
+- **Топ-10 задач по RICE** — таблица с бейджами этапов и значением RICE-score
+- **Дисклеймер** — жёлтый блок: «оценка ориентировочная, без учёта согласований клиента»
+
+### Added — TOC обновлён
+
+В оглавлении новая ссылка `Оценка трудозатрат · N ч` (показывает итоговое число часов).
+
+### Added — Markdown шаблон
+
+Новая секция «Оценка трудозатрат на внедрение» в Фазе 4 SKILL.md.
+
+### Verified — backward compatible
+
+Старые JSON без `effortEstimate` рендерятся без секции (условный блок). Новая JSON-схема — extension-only, не ломает существующих данных.
+
+Тест на синтетических данных maxilac.ru (4 этапа, 232 ч с резервом 20%): HTML 367 KB, PDF 3 MB сгенерированы успешно. Визуальный preview подтверждает корректную вёрстку всех элементов.
+
 ## [1.9.3] — 2026-04-09 — Жёсткие чек-листы для агента в Фазе 3
 
 ### Fixed — агент пропускал badAnchors и thin content в v1.9.0/v1.9.1

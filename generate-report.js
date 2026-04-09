@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.9.3';
+const SKILL_VERSION = '1.10.0';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -370,6 +370,138 @@ function buildHTML(data) {
     </div>`;
   })() : '';
 
+  // ── Section: Effort Estimate ───────────────────────────────────────────────
+  const effortEstimateHtml = data.effortEstimate ? (() => {
+    const ee = data.effortEstimate;
+    const pm = data.projectMeta || {};
+    const stages = ee.stages || [];
+    const totals = ee.totals || {};
+    const reserve = ee.reserveHours || {};
+    const reservePct = ee.reservePercent || 0;
+    const mgmtH = ee.managementHours || 0;
+    const top = ee.topByRice || [];
+
+    const stageColors = {
+      1: '#dc2626', // red — блокеры
+      2: '#ea580c', // orange — pattern fixes
+      3: '#16a34a', // green — site-wide
+      4: '#64748b', // muted — полировка
+    };
+
+    const stageRows = stages.map(s => {
+      const h = s.hours || {};
+      return `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:6px;height:24px;background:${stageColors[s.id] || '#64748b'};border-radius:2px"></div>
+            <div>
+              <div style="font-weight:700;font-size:13px">${s.id}. ${esc(s.label)}</div>
+              <div style="font-size:11px;color:var(--muted)">${esc(s.deadline || '')} · ${s.taskCount || 0} ${s.taskCount === 1 ? 'задача' : s.taskCount < 5 ? 'задачи' : 'задач'}</div>
+            </div>
+          </div>
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.dev || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.seo || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.qa || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.content || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${h.total || 0}</td>
+      </tr>`;
+    }).join('');
+
+    const reserveRow = (reservePct > 0) ? `
+      <tr style="background:#fef9c3">
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a">
+          <div style="font-weight:600;font-size:13px;color:#92400e">Резерв на неопределённость (${reservePct}%)</div>
+          <div style="font-size:11px;color:#92400e">${esc(pm.size || '')} проект</div>
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.dev || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.seo || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.qa || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.content || 0}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#92400e">${reserve.total || 0}</td>
+      </tr>` : '';
+
+    const mgmtRow = (mgmtH > 0) ? `
+      <tr style="background:#eff6ff">
+        <td style="padding:10px 12px;border-bottom:1px solid #dbeafe">
+          <div style="font-weight:600;font-size:13px;color:#1e40af">Менеджмент / коммуникация</div>
+          <div style="font-size:11px;color:#1e40af">~10% от Dev+SEO часов</div>
+        </td>
+        <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #dbeafe;text-align:right;font-size:11px;color:#1e40af">PM, согласования</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #dbeafe;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#1e40af">${mgmtH}</td>
+      </tr>` : '';
+
+    const totalRow = `
+      <tr style="background:#0f172a;color:#fff">
+        <td style="padding:14px 12px;font-weight:800;font-size:14px">ИТОГО</td>
+        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.dev || 0}</td>
+        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.seo || 0}</td>
+        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.qa || 0}</td>
+        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.content || 0}</td>
+        <td style="padding:14px 12px;text-align:right;font-weight:900;font-size:18px;font-variant-numeric:tabular-nums;color:#fbbf24">${totals.withReserve || totals.subtotal || 0} ч</td>
+      </tr>`;
+
+    const topRows = top.slice(0, 10).map((t, i) => `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;width:32px;text-align:center;color:var(--muted);font-weight:600">${i + 1}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px">
+          <a href="#rec-${esc(String(i+1))}" style="color:inherit;text-decoration:none">${esc(t.title)}</a>
+          ${t.stage ? `<span style="display:inline-block;margin-left:8px;padding:1px 6px;border-radius:3px;background:${stageColors[t.stage] || '#64748b'}22;color:${stageColors[t.stage] || '#64748b'};font-size:10px;font-weight:700">этап ${t.stage}</span>` : ''}
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${t.totalHours || 0} ч</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)">${(t.riceScore || 0).toFixed ? t.riceScore.toFixed(1) : t.riceScore}</td>
+      </tr>`).join('');
+
+    return `
+    <div class="card" id="effort">
+      <h2>Оценка трудозатрат на внедрение</h2>
+      <p style="color:#475569;font-size:14px;margin-bottom:6px">
+        Оценка составлена на основе baseline-часов отраслевых публикаций × множителей под CMS, объём сайта, сложность правок и QA. Без учёта стоимости согласований на стороне клиента.
+      </p>
+      ${pm.cms || pm.size ? `<p style="color:var(--muted);font-size:12px;margin-bottom:18px">CMS: <strong>${esc(pm.cms || '?')}</strong> · Размер сайта: <strong>${esc(pm.size || '?')}</strong>${pm.totalUrls ? ` (${pm.totalUrls} URL в sitemap)` : ''}</p>` : ''}
+
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 10px">Сводка по этапам внедрения</h3>
+      <table style="font-size:13px">
+        <thead>
+          <tr>
+            <th style="text-align:left">Этап</th>
+            <th style="text-align:right">Dev</th>
+            <th style="text-align:right">SEO</th>
+            <th style="text-align:right">QA</th>
+            <th style="text-align:right">Content</th>
+            <th style="text-align:right">Всего</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${stageRows}
+          ${reserveRow}
+          ${mgmtRow}
+          ${totalRow}
+        </tbody>
+      </table>
+
+      ${top.length ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:24px 0 10px">Топ-10 задач по приоритету (RICE-score)</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px">RICE = (Reach × Impact × Confidence) / Effort. Чем выше — тем больше эффект на единицу затрат.</p>
+      <table style="font-size:13px">
+        <thead>
+          <tr>
+            <th style="text-align:center;width:32px">#</th>
+            <th style="text-align:left">Задача</th>
+            <th style="text-align:right;width:80px">Часы</th>
+            <th style="text-align:right;width:80px">RICE</th>
+          </tr>
+        </thead>
+        <tbody>${topRows}</tbody>
+      </table>` : ''}
+
+      <div style="margin-top:18px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e">
+        <strong>Дисклеймер</strong>: оценка ориентировочная. Baseline-часы — отраслевые средние; реальное время зависит от velocity команды, доступа к коду / инфраструктуре, скорости согласований. Типично калибровка под конкретную команду требует 2–3 проектов. Не включает: стоимость согласований клиента (+30% к календарному сроку), миграционные риски сверх перечисленных.
+      </div>
+    </div>`;
+  })() : '';
+
   // ── Section: Roadmap (3 phases) ─────────────────────────────────────────────
   function phaseColumn(title, label, recsArr, color, deadline) {
     if (!recsArr.length) return '';
@@ -474,6 +606,7 @@ function buildHTML(data) {
       <li><a href="#exec-summary">Главное · оценка ${grade}</a></li>
       <li><a href="#scores">Оценки по 10 категориям</a></li>
       ${(lighthouse && lighthouse.available) ? `<li><a href="#lighthouse">Lighthouse — производительность</a></li>` : ''}
+      ${data.effortEstimate ? `<li><a href="#effort">Оценка трудозатрат · ${data.effortEstimate.totals?.withReserve || data.effortEstimate.totals?.subtotal || '?'} ч</a></li>` : ''}
       ${recs.length ? `<li><a href="#roadmap">План действий — ${urgentRecs.length + monthRecs.length + strategyRecs.length} задач в 3 фазах</a></li>` : ''}
       ${recs.length ? `<li><a href="#recs">Детализация ${recs.length} рекомендаций</a></li>` : ''}
       ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'типа страниц' : pages.length < 5 ? 'типов страниц' : 'типов страниц'}</a></li>` : ''}
@@ -851,6 +984,7 @@ function buildHTML(data) {
   ${statsHtml}
   ${scoresHtml}
   ${lhHtml}
+  ${effortEstimateHtml}
   ${roadmapHtml}
   ${recsHtml}
   ${pagesHtml}
