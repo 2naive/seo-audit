@@ -602,7 +602,7 @@ lighthouse --version 2>/dev/null || npm install -g lighthouse
 ```bash
 lighthouse "$ARGUMENTS" \
   --output json \
-  --chrome-flags="--headless=new --disable-gpu --no-sandbox --window-position=-32000,-32000 --window-size=1,1" \
+  --chrome-flags="--headless=new --disable-gpu --no-sandbox --window-position=-32000,-32000" \
   --only-categories=seo,performance,accessibility,best-practices \
   --output-path "${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json" \
   --quiet 2>/dev/null
@@ -665,7 +665,7 @@ if (shot) {
 lighthouse "$ARGUMENTS" \
   --output json \
   --preset=desktop \
-  --chrome-flags="--headless=new --disable-gpu --no-sandbox --window-position=-32000,-32000 --window-size=1,1" \
+  --chrome-flags="--headless=new --disable-gpu --no-sandbox --window-position=-32000,-32000" \
   --only-categories=performance \
   --output-path "${OUTPUT_DIR}/lighthouse-desktop-${DOMAIN}-${DATETIME}.json" \
   --quiet 2>/dev/null
@@ -1218,7 +1218,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.9.1",
+  "skillVersion": "1.9.2",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,

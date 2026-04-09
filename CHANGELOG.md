@@ -1,5 +1,24 @@
 # Changelog — SEO Audit Skill
 
+## [1.9.2] — 2026-04-09
+
+### Fixed — PDF-генерация падала с "No page target found"
+
+**Корневая причина**: в v1.8.4 для скрытия Chrome-окон я добавил флаги `--window-size=1,1` и `--silent-launch` к spawn args в `generate-report.js`. Эти флаги несовместимы с CDP page target:
+- `--window-size=1,1` — Chrome не создаёт нормальную page (slишком маленький viewport, browser открывается без рендеринга страницы)
+- `--silent-launch` — блокирует открытие page в headless режиме
+- Polling `/json/version` дожидается только browser, не page → `targets.find(t => t.type === 'page')` возвращает undefined
+
+**Исправление**:
+- `--window-size=1,1` → `--window-size=1280,800` (нормальный размер для рендера, окно всё равно за экраном через `--window-position=-32000,-32000`)
+- Удалён `--silent-launch`
+- Polling переписан: ждёт появления **page target в /json/list**, не просто debug port (до 20 секунд, проверка каждые 250ms)
+- Lighthouse chrome-flags в SKILL.md тоже почищены: убран `--window-size=1,1`
+
+**Тест**: PDF 3 MB сгенерирован успешно для maxilac.ru-0240.
+
+**К ноте об агенте**: в выводе ошибки агент написал «Puppeteer упал». В скилле **не используется** Puppeteer — у нас минимальный CDP WebSocket клиент в `generate-report.js`, написанный с нуля без npm-зависимостей. Это была ошибка терминологии в выводе агента.
+
 ## [1.9.1] — 2026-04-09 — Категоризация страниц по типу шаблона
 
 ### Added — Анализ уникальных типов страниц вместо случайных URL

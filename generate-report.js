@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.9.1';
+const SKILL_VERSION = '1.9.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -924,11 +924,11 @@ async function generatePDF(chrome, htmlFilePath, pdfOutPath) {
     '--no-default-browser-check',
     '--disable-extensions',
     '--remote-debugging-port=' + port,
-    // Окно должно быть гарантированно скрыто (на случай если --headless=new
-    // на Windows всё равно показывает badge/окно): за пределами экрана + 1×1px
+    // Окно гарантированно за пределами экрана. Размер должен быть нормальным
+    // (1280×800) — если поставить 1×1, Chrome не создаёт нормальный page target
+    // и --print-to-pdf через CDP не работает.
     '--window-position=-32000,-32000',
-    '--window-size=1,1',
-    '--silent-launch',
+    '--window-size=1280,800',
     fileUrl,
   ], {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -952,18 +952,19 @@ async function generatePDF(chrome, htmlFilePath, pdfOutPath) {
     try { rmSync(tmpProfile, { recursive: true, force: true }); } catch {}
   }
 
-  // Wait for Chrome debug port (up to 15s)
-  let ready = false;
-  for (let i = 0; i < 60; i++) {
-    try { await fetchJSON('/json/version'); ready = true; break; } catch {}
+  // Wait for Chrome debug port AND page target to appear (up to 20s).
+  // Просто проверка /json/version не достаточна — Chrome может открыть debug
+  // port раньше чем создаст page target. Polling /json/list пока не появится page.
+  let target = null;
+  for (let i = 0; i < 80; i++) {
+    try {
+      const targets = await fetchJSON('/json/list');
+      target = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
+      if (target) break;
+    } catch {}
     await new Promise(r => setTimeout(r, 250));
   }
-  if (!ready) { cleanup(); throw new Error('Chrome debug port did not open'); }
-
-  // Find target page (the one we opened with file URL)
-  const targets = await fetchJSON('/json/list');
-  const target = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
-  if (!target) { cleanup(); throw new Error('No page target found'); }
+  if (!target) { cleanup(); throw new Error('No page target found after 20s — Chrome did not open page'); }
 
   // Minimal WebSocket client for CDP
   function wsConnect(wsUrl) {
