@@ -1,5 +1,56 @@
 # Changelog — SEO Audit Skill
 
+## [1.17.1] — 2026-04-10 — Reuse existing Chrome CDP + revert H1 standalone row
+
+Патч-релиз: две правки по обратной связи пользователя на v1.17.0.
+
+### Reverted — H1 standalone prominent row (v1.17.0)
+
+В v1.17.0 я переместил H1 metric из 2-колоночной сетки в отдельную полно-ширинную строку с цветным фоном — чтобы исключить визуальную путаницу с Title (пользователь сообщил «h1 везде 77 символов»).
+
+Пользователь подтвердил: это была **ошибка восприятия**, не реальный баг — H1 metric и в JSON, и в HTML был правильным. Standalone row избыточен и нарушает однородность сетки метрик.
+
+Откат: H1 metric возвращён в 2-колоночную сетку наравне с Title, Description, Canonical, Schema.org, OG, Хлебные крошки, Изображения. Стандартные значения как до v1.17.0:
+- Главная: red «нет»
+- Остальные: green с реальным текстом H1 (truncate 60 символов)
+
+### Added — Reuse существующего Chrome CDP перед spawn
+
+**Жалоба**: «Все ещё запускается новый экземпляр Chrome при доступных активных с Claude Chrome» — даже когда у пользователя есть запущенный Chrome (с расширениями), `generate-report.js` каждый раз спавнит новый headless Chrome процесс с временным профилем.
+
+**Корень**: до v1.17.1 PDF generation **всегда** запускал свежий `chrome.exe --headless=new --remote-debugging-port=PORT` через `spawn detached` с временным `--user-data-dir`. Никакой попытки использовать уже работающий Chrome не было.
+
+**Фикс**: добавлена функция `findExistingChromeCDP()`, которая пробует подключиться к стандартным CDP-портам **9222 / 9223 / 9224** на 127.0.0.1. Если хотя бы на одном порту отвечает Chrome (валидный `/json/version` с `webSocketDebuggerUrl`), используем его:
+
+1. `PUT /json/new?<file://...>` — открывает новую tab в существующем Chrome с нашим HTML
+2. CDP WebSocket → `Page.printToPDF` (как раньше)
+3. `GET /json/close/<targetId>` — закрывает только нашу tab, **не** убивает процесс
+
+Если ни один порт не отвечает — fallback на старое поведение: spawn собственного `--headless=new` с временным профилем.
+
+### Opt-in для reuse
+
+Чтобы скилл реально использовал ваш Chrome, его нужно запускать с CDP-портом:
+```
+chrome.exe --remote-debugging-port=9222
+```
+Без этого флага обычный Chrome не открывает CDP-порт (расширения, включая Claude Chrome, используют внутренние chrome.* API, не CDP). Документировано в `C:\Users\naive\claude\test\CLAUDE.md`.
+
+### Verified
+
+- ✅ Существующий Chrome на 9222 (запущенный для теста) был обнаружен и использован: stderr показал `PDF: reusing existing Chrome on 127.0.0.1:9222 (no new process spawned)`. PDF сгенерирован 3571 KB.
+- ✅ Новая tab открыта через `PUT /json/new`, рендер прошёл, tab закрыта через `GET /json/close/<targetId>` — основной Chrome остался жить.
+- ✅ Если порт 9222–9224 не открыт, скилл фоллбэчится на spawn новой headless Chrome (как раньше) — обратная совместимость сохранена.
+
+### Files
+
+- `generate-report.js` — `findExistingChromeCDP()` + `generatePDF()` переписан на 2-режимный (reuse / spawn). H1 standalone row удалён, метрика вернулась в сетку. `SKILL_VERSION = '1.17.1'`.
+- `SKILL.md` — `skillVersion: 1.17.1`.
+- `CLAUDE.md` (skill) — версия `1.17.1`.
+- `CLAUDE.md` (project) — добавлено opt-in описание «Чтобы НЕ плодить новые экземпляры Chrome…» с инструкцией запускать Chrome с `--remote-debugging-port=9222`.
+
+---
+
 ## [1.17.0] — 2026-04-10 — UX правки: обложка, Lighthouse, скриншот, H1, page coverage
 
 Минорный релиз: 5 правок UX/визуала + content quality, поднятых пользователем после ручного просмотра отчёта v1.16.4.

@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.17.0';
+const SKILL_VERSION = '1.17.1';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -1115,17 +1115,6 @@ function buildHTML(data) {
     const schemaOk    = !!(m.schemaTypes && m.schemaTypes.length);
     const schemaVal   = schemaOk ? m.schemaTypes.join(', ') : 'нет';
 
-    // H1 — отдельная prominent-строка над метриками: чтобы её нельзя было визуально
-    // спутать с Title в 2-колоночной сетке (на v1.16.4 пользователь отметил
-    // путаницу — Title 77 симв. рядом с H1 в одной горизонтальной строке).
-    const h1RowColor = h1Ok ? '#16a34a' : '#dc2626';
-    const h1RowBg = h1Ok ? '#f0fdf4' : '#fef2f2';
-    const h1Row = `
-      <div style="margin:8px 0 10px;padding:10px 12px;border-radius:6px;background:${h1RowBg};border-left:4px solid ${h1RowColor};display:flex;align-items:baseline;gap:10px">
-        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${h1RowColor};flex-shrink:0">Заголовок H1</span>
-        <span style="font-size:13px;color:#1e293b;font-weight:500">${esc(h1Display)}</span>
-      </div>`;
-
     return `
     <div class="page-card">
       <div class="page-card-header">
@@ -1137,10 +1126,10 @@ function buildHTML(data) {
         <span class="page-type-pattern">Pattern: <code>${esc(pt.pattern)}</code></span>
         ${pt.matchedCount ? `<span class="page-type-count">${pt.matchedCount} ${pt.matchedCount === 1 ? 'страница этого типа' : pt.matchedCount < 5 ? 'страницы этого типа' : 'страниц этого типа'}</span>` : ''}
       </div>` : ''}
-      ${h1Row}
       <div class="page-metrics">
         ${metricRow('Title', titleVal, m.titleLen == null ? false : titleOk)}
         ${metricRow('Description', descVal, m.metaDescLen == null ? false : descOk)}
+        ${metricRow('H1', h1Display, h1Ok)}
         ${metricRow('Canonical', m.canonical ? '✓' : 'нет', !!m.canonical)}
         ${metricRow('Schema.org', schemaVal, schemaOk)}
         ${metricRow('Open Graph', m.hasOpenGraph ? '✓' : 'нет', !!m.hasOpenGraph)}
@@ -1557,82 +1546,139 @@ const html = buildHTML(data);
 writeFileSync(htmlPath, html, 'utf8');
 console.log(`HTML → ${htmlPath}`);
 
-// ── Convert to PDF via Chrome headless + CDP WebSocket ─────────────────────
-// Why CDP: на Windows когда активен Claude Chrome Extension, обычный
-// `chrome --headless --print-to-pdf` молча падает (chrome.exe видит
-// существующий main process через Process Singleton mechanism и подсасывает
-// к нему вместо запуска отдельной headless instance, --user-data-dir не
-// помогает). А `--print-to-pdf` несовместимо с `--remote-debugging-port`.
-// Решение — запустить Chrome с --remote-debugging-port (это обходит
-// Singleton), затем через WebSocket вызвать Page.printToPDF из CDP.
+// ── Convert to PDF via Chrome CDP WebSocket ────────────────────────────────
+// v1.17.1: сначала пробуем подключиться к УЖЕ ЗАПУЩЕННОМУ Chrome с CDP-портом
+// (на 9222–9224), и только если не найден — спавним новый headless экземпляр.
+// Это решает жалобу пользователя «новый Chrome всё ещё запускается, когда есть
+// активный с Claude Chrome Extension». Если у юзера Chrome открыт с
+// `--remote-debugging-port=9222`, мы откроем новую tab в нём, отрендерим PDF
+// и закроем tab — не плодя процессов.
 //
-// Минимальный WebSocket клиент написан с нуля через http+net+crypto,
-// без зависимостей. Lighthouse использует тот же подход (chrome-launcher).
+// Why CDP: на Windows когда активен Claude Chrome Extension, обычный
+// `chrome --headless --print-to-pdf` молча падает. Решение — CDP WebSocket.
+// Минимальный WebSocket клиент через http+net+crypto, без зависимостей.
+
+function fetchJSON(host, port, p) {
+  return new Promise((resolve, reject) => {
+    const http = require('http');
+    const req = http.get(`http://${host}:${port}${p}`, res => {
+      let body = '';
+      res.on('data', d => body += d);
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.setTimeout(800, () => { req.destroy(new Error('CDP probe timeout')); });
+  });
+}
+
+// Пробуем найти уже запущенный Chrome с открытым debug-портом.
+// Возвращает {host, port} или null.
+async function findExistingChromeCDP() {
+  for (const port of [9222, 9223, 9224]) {
+    try {
+      const v = await fetchJSON('127.0.0.1', port, '/json/version');
+      if (v && v.webSocketDebuggerUrl) {
+        return { host: '127.0.0.1', port };
+      }
+    } catch {}
+  }
+  return null;
+}
+
 async function generatePDF(chrome, htmlFilePath, pdfOutPath) {
   const { spawn } = require('child_process');
-  const http = require('http');
-  const net = require('net');
   const cryptoMod = require('crypto');
+  const net = require('net');
   const os = require('os');
   const path = require('path');
   const { mkdtempSync, rmSync, unlinkSync, writeFileSync, statSync } = require('fs');
 
   try { if (existsSync(pdfOutPath)) unlinkSync(pdfOutPath); } catch {}
 
-  const tmpProfile = mkdtempSync(path.join(os.tmpdir(), 'chr-cdp-'));
-  const port = 9222 + Math.floor(Math.random() * 1000);
   const fileUrl = 'file:///' + htmlFilePath.replace(/\\/g, '/').replace(/^\/+/, '');
 
-  const child = spawn(chrome, [
-    '--headless=new',
-    '--disable-gpu',
-    '--no-sandbox',
-    '--user-data-dir=' + tmpProfile,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-extensions',
-    '--remote-debugging-port=' + port,
-    // Окно гарантированно за пределами экрана. Размер должен быть нормальным
-    // (1280×800) — если поставить 1×1, Chrome не создаёт нормальный page target
-    // и --print-to-pdf через CDP не работает.
-    '--window-position=-32000,-32000',
-    '--window-size=1280,800',
-    fileUrl,
-  ], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-    windowsHide: true,
-  });
-  child.unref();
+  // ── Try to reuse existing Chrome CDP first ────────────────────────────────
+  const existing = await findExistingChromeCDP();
+  let host, port, child = null, tmpProfile = null;
+  let usedExisting = false;
 
-  function fetchJSON(p) {
-    return new Promise((resolve, reject) => {
-      http.get(`http://127.0.0.1:${port}${p}`, res => {
-        let body = '';
-        res.on('data', d => body += d);
-        res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
-      }).on('error', reject);
+  if (existing) {
+    host = existing.host;
+    port = existing.port;
+    usedExisting = true;
+    console.log(`PDF: reusing existing Chrome on ${host}:${port} (no new process spawned)`);
+  } else {
+    // ── Fallback: spawn a new headless Chrome ────────────────────────────────
+    tmpProfile = mkdtempSync(path.join(os.tmpdir(), 'chr-cdp-'));
+    host = '127.0.0.1';
+    port = 9222 + Math.floor(Math.random() * 1000);
+    child = spawn(chrome, [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-sandbox',
+      '--user-data-dir=' + tmpProfile,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-extensions',
+      '--remote-debugging-port=' + port,
+      '--window-position=-32000,-32000',
+      '--window-size=1280,800',
+      fileUrl,
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
+      windowsHide: true,
     });
+    child.unref();
   }
 
   function cleanup() {
-    try { child.kill(); } catch {}
-    try { rmSync(tmpProfile, { recursive: true, force: true }); } catch {}
+    if (child) { try { child.kill(); } catch {} }
+    if (tmpProfile) { try { rmSync(tmpProfile, { recursive: true, force: true }); } catch {} }
   }
 
-  // Wait for Chrome debug port AND page target to appear (up to 20s).
-  // Просто проверка /json/version не достаточна — Chrome может открыть debug
-  // port раньше чем создаст page target. Polling /json/list пока не появится page.
+  // ── Get a page target ─────────────────────────────────────────────────────
   let target = null;
-  for (let i = 0; i < 80; i++) {
+  let createdTargetId = null;
+
+  if (usedExisting) {
+    // Создаём НОВУЮ tab в существующем Chrome через PUT /json/new
     try {
-      const targets = await fetchJSON('/json/list');
-      target = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
-      if (target) break;
-    } catch {}
-    await new Promise(r => setTimeout(r, 250));
+      const http = require('http');
+      const newTab = await new Promise((resolve, reject) => {
+        const req = http.request({
+          host, port,
+          path: `/json/new?${encodeURIComponent(fileUrl)}`,
+          method: 'PUT',
+        }, res => {
+          let body = '';
+          res.on('data', d => body += d);
+          res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+        });
+        req.on('error', reject);
+        req.end();
+      });
+      if (!newTab || !newTab.webSocketDebuggerUrl) {
+        throw new Error('PUT /json/new returned no webSocketDebuggerUrl');
+      }
+      target = newTab;
+      createdTargetId = newTab.id;
+    } catch (e) {
+      cleanup();
+      throw new Error('Failed to open new tab in existing Chrome: ' + e.message);
+    }
+  } else {
+    // Wait for spawned Chrome debug port AND page target (up to 20s)
+    for (let i = 0; i < 80; i++) {
+      try {
+        const targets = await fetchJSON(host, port, '/json/list');
+        target = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
+        if (target) break;
+      } catch {}
+      await new Promise(r => setTimeout(r, 250));
+    }
+    if (!target) { cleanup(); throw new Error('No page target found after 20s — Chrome did not open page'); }
   }
-  if (!target) { cleanup(); throw new Error('No page target found after 20s — Chrome did not open page'); }
 
   // Minimal WebSocket client for CDP
   function wsConnect(wsUrl) {
@@ -1729,7 +1775,9 @@ async function generatePDF(chrome, htmlFilePath, pdfOutPath) {
   try {
     ws = await wsConnect(target.webSocketDebuggerUrl);
     await ws.send('Page.enable');
-    // Дать странице время отрендериться (картинки, шрифты, base64 ассеты)
+    // В случае reused Chrome — мы уже открыли tab с file:// при PUT /json/new,
+    // но навигация могла ещё не начаться. В случае spawn — Chrome был запущен
+    // с file:// в args. Подождать загрузки.
     await new Promise(r => setTimeout(r, 2500));
     const result = await ws.send('Page.printToPDF', {
       printBackground: true,
@@ -1743,7 +1791,23 @@ async function generatePDF(chrome, htmlFilePath, pdfOutPath) {
     return statSync(pdfOutPath).size;
   } finally {
     if (ws) ws.close();
-    cleanup();
+    // Если использовали существующий Chrome — закрыть только созданную нами tab,
+    // НЕ убивать процесс. Если spawn-нули новый — kill всего процесса.
+    if (usedExisting && createdTargetId) {
+      try {
+        const http = require('http');
+        await new Promise(resolve => {
+          const req = http.get(`http://${host}:${port}/json/close/${createdTargetId}`, res => {
+            res.on('data', () => {});
+            res.on('end', resolve);
+          });
+          req.on('error', resolve);
+          req.setTimeout(1000, () => { req.destroy(); resolve(); });
+        });
+      } catch {}
+    } else {
+      cleanup();
+    }
   }
 }
 
