@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.13.2';
+const SKILL_VERSION = '1.14.0';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -372,6 +372,111 @@ function buildHTML(data) {
     </div>`;
   })() : '';
 
+  // ── Section: AEO / GEO готовность (AI-поиск) ───────────────────────────────
+  const aeoHtml = (() => {
+    const sd = data.siteData || {};
+    const llms = sd.llmsTxt || {};
+    const ai = sd.aiCrawlers || {};
+    const aeoPages = (pages || []).filter(p => p.metrics && p.metrics.aeoReadiness);
+    if (!aeoPages.length && !llms.exists && !Array.isArray(ai.blocked) && !Array.isArray(ai.allowed) && !Array.isArray(ai.notMentioned)) {
+      return ''; // нет ни одного AEO-сигнала — секцию не показываем
+    }
+
+    // Агрегаты по AEO-готовности страниц
+    const totalAeo = aeoPages.length;
+    const longFirstP = aeoPages.filter(p => (p.metrics.aeoReadiness.firstParagraphWords || 0) > 60).length;
+    const shortFirstP = aeoPages.filter(p => {
+      const w = p.metrics.aeoReadiness.firstParagraphWords || 0;
+      return w > 0 && w <= 60;
+    }).length;
+    const noFaq = aeoPages.filter(p => p.metrics.aeoReadiness.hasFaqSection === false).length;
+    const withFaq = totalAeo - noFaq;
+    const avgFirstP = totalAeo > 0
+      ? Math.round(aeoPages.reduce((s, p) => s + (p.metrics.aeoReadiness.firstParagraphWords || 0), 0) / totalAeo)
+      : 0;
+
+    const blocked = Array.isArray(ai.blocked) ? ai.blocked : [];
+    const allowed = Array.isArray(ai.allowed) ? ai.allowed : [];
+    const notMent = Array.isArray(ai.notMentioned) ? ai.notMentioned : [];
+
+    const dot = (color, label) => `<span style="display:inline-block;width:8px;height:8px;border-radius:99px;background:${color};margin-right:6px;vertical-align:middle"></span>${label}`;
+    const tag = (text, color) => `<span style="display:inline-block;padding:2px 8px;border-radius:99px;background:${color}22;color:${color};font-size:11px;font-weight:600;margin:2px 4px 2px 0">${esc(text)}</span>`;
+
+    return `
+    <div class="card" id="aeo-geo">
+      <h2>AEO / GEO — готовность к AI-поиску</h2>
+      <p style="color:#475569;font-size:14px;margin-bottom:18px">
+        Answer Engine Optimization и Generative Engine Optimization — оптимизация под AI-обзоры и LLM-краулеры (ChatGPT, Perplexity, Gemini, YandexGPT). Проверяется доступ AI-краулеров, наличие <code>llms.txt</code> и структура контента, удобная для извлечения ответов.
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:20px">
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">llms.txt</div>
+          <div style="font-size:20px;font-weight:700;color:${llms.exists ? '#16a34a' : '#dc2626'}">${llms.exists ? '✓ найден' : '✗ отсутствует'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${llms.fullExists ? 'есть llms-full.txt' : 'экспериментальный стандарт для AI-руководства'}</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">AI-краулеры</div>
+          <div style="font-size:20px;font-weight:700;color:${blocked.length ? '#dc2626' : allowed.length ? '#16a34a' : '#f59e0b'}">${blocked.length ? `${blocked.length} заблокировано` : allowed.length ? `${allowed.length} разрешено` : 'не настроены'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${notMent.length ? `${notMent.length} не упомянуты в robots.txt` : 'все основные AI-краулеры учтены'}</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">FAQ-секции</div>
+          <div style="font-size:20px;font-weight:700;color:${withFaq > 0 ? '#16a34a' : '#dc2626'}">${withFaq} / ${totalAeo}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">страниц с FAQ-блоком (важно для AI-ответов)</div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">Первый абзац</div>
+          <div style="font-size:20px;font-weight:700;color:${avgFirstP > 0 && avgFirstP <= 60 ? '#16a34a' : avgFirstP > 60 ? '#f59e0b' : '#dc2626'}">${avgFirstP || '—'} слов</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">средняя длина (норма для AI-ответов: ≤ 60 слов)</div>
+        </div>
+      </div>
+
+      ${(blocked.length || allowed.length || notMent.length) ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 8px">Статус AI-краулеров</h3>
+      <div style="font-size:13px;line-height:1.9">
+        ${blocked.length ? `<div>${dot('#dc2626', 'Заблокированы:')} ${blocked.map(b => tag(b, '#dc2626')).join('')}</div>` : ''}
+        ${allowed.length ? `<div>${dot('#16a34a', 'Явно разрешены:')} ${allowed.map(b => tag(b, '#16a34a')).join('')}</div>` : ''}
+        ${notMent.length ? `<div>${dot('#f59e0b', 'Не упомянуты в robots.txt:')} ${notMent.map(b => tag(b, '#f59e0b')).join('')}</div>` : ''}
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">«Не упомянуты» = не указаны явно ни в Allow, ни в Disallow. Для коммерческого сайта рекомендуется явно разрешить — это повышает шанс попасть в обучающие выборки и AI-ответы.</p>
+      ` : ''}
+
+      ${totalAeo > 0 ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:18px 0 8px">Готовность контента страниц</h3>
+      <table style="font-size:13px">
+        <thead>
+          <tr>
+            <th style="text-align:left">Метрика</th>
+            <th style="text-align:right;width:80px">Значение</th>
+            <th style="text-align:left;width:50%">Что это значит для AI-поиска</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц с первым абзацем ≤ 60 слов</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${shortFirstP === totalAeo ? '#16a34a' : shortFirstP === 0 ? '#dc2626' : '#f59e0b'}">${shortFirstP} / ${totalAeo}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">Короткий лид-абзац AI используют дословно как ответ. Длинный пересказывают своими словами или игнорируют.</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц с длинным первым абзацем (&gt; 60 слов)</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${longFirstP === 0 ? '#16a34a' : '#f59e0b'}">${longFirstP} / ${totalAeo}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">Сократить лид до 1–3 предложений с прямым ответом на основной интент страницы.</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">Страниц с FAQ-секцией</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${withFaq === totalAeo ? '#16a34a' : withFaq === 0 ? '#dc2626' : '#f59e0b'}">${withFaq} / ${totalAeo}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:var(--muted)">FAQ + Schema.org FAQPage — основной формат, который AI-движки и поисковые ассистенты извлекают как ответы на вопросы.</td>
+          </tr>
+        </tbody>
+      </table>` : ''}
+
+      <p style="margin-top:14px;font-size:12px;color:var(--muted)">
+        AEO/GEO — относительно новая дисциплина. Основные сигналы готовности: открытый доступ AI-краулерам, наличие <code>llms.txt</code>, краткие лид-абзацы с прямыми ответами, FAQ-секции с разметкой, Schema.org Article/Product/Organization для контекста.
+      </p>
+    </div>`;
+  })();
+
   // ── Section: Effort Estimate ───────────────────────────────────────────────
   const effortEstimateHtml = data.effortEstimate ? (() => {
     const ee = data.effortEstimate;
@@ -648,6 +753,7 @@ function buildHTML(data) {
       ${data.effortEstimate ? `<li><a href="#effort">Оценка трудозатрат на внедрение</a></li>` : ''}
       ${recs.length ? `<li><a href="#recs">Детализация ${recs.length} рекомендаций</a></li>` : ''}
       ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'типа страниц' : pages.length < 5 ? 'типов страниц' : 'типов страниц'}</a></li>` : ''}
+      ${aeoHtml ? `<li><a href="#aeo-geo">AEO / GEO — готовность к AI-поиску</a></li>` : ''}
       ${(technical && technical.length) ? `<li><a href="#technical">Технические проверки по блокам</a></li>` : ''}
       ${(desktopSrc || mobileSrc) ? `<li><a href="#screenshots">Скриншоты сайта</a></li>` : ''}
       ${(notChecked && notChecked.length) ? `<li><a href="#not-checked">За рамками этого отчёта</a></li>` : ''}
@@ -1051,6 +1157,7 @@ function buildHTML(data) {
   ${effortEstimateHtml}
   ${recsHtml}
   ${pagesHtml}
+  ${aeoHtml}
   ${techHtml}
   ${screenshotsHtml}
   ${notCheckedHtml}

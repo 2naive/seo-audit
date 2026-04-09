@@ -1592,7 +1592,7 @@ stage.total = seo + dev + qa + devops + design + pm
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.13.2",
+  "skillVersion": "1.14.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
