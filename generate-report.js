@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.16.0';
+const SKILL_VERSION = '1.16.1';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -177,6 +177,43 @@ const RULE_16_SLANG = [
   /выйти в топ/i,
   /сер[ыо]й SEO/i, /чёрн[ыо]й SEO/i,
 ];
+// Дополнительные lint-проверки качества данных, не блокирующие генерацию.
+// Помогают оператору заметить дефекты JSON до отправки клиенту.
+function lintDataQuality(data) {
+  const issues = [];
+
+  // Rule 8: топ-5 risks. На v1.15.2 агент выдал 7.
+  if ((data.risks || []).length > 5) {
+    issues.push(`Rule 8: ${data.risks.length} risks (Правило 8 разрешает 5 максимум). Агент включил больше — оставь топ-5 по приоритету.`);
+  }
+
+  // Rule 2: impact без конкретной цифры/процента/диапазона
+  const ROI_RE = /\d+\s*(%|раз|сек|мин|час|млн|тыс|₽|поз|KB|MB|кб|мб)|на\s+\d+|\+\d+|−\d+|до\s+\d+/i;
+  const noRoi = (data.recommendations || [])
+    .map((r, i) => ({ i, r }))
+    .filter(({ r }) => r.impact && !ROI_RE.test(r.impact));
+  if (noRoi.length) {
+    issues.push(`Rule 2: ${noRoi.length} рекомендаций без конкретной цифры/% в impact (см. Правило 2 → ROI-таблица):`);
+    noRoi.slice(0, 5).forEach(({ i, r }) => issues.push(`   • recommendations[${i}]: «${r.title.slice(0, 60)}…»`));
+    if (noRoi.length > 5) issues.push(`   …и ещё ${noRoi.length - 5}`);
+  }
+
+  // Rule 15: aeoReadiness.firstParagraphWords contract — должно быть number ≥ 0
+  const aeoNull = (data.pages || [])
+    .map((p, i) => ({ i, p }))
+    .filter(({ p }) => p.metrics?.aeoReadiness && p.metrics.aeoReadiness.firstParagraphWords === null);
+  if (aeoNull.length) {
+    issues.push(`Rule 15: ${aeoNull.length} страниц с pages[].metrics.aeoReadiness.firstParagraphWords === null. По контракту collector-а это всегда число ≥ 0:`);
+    aeoNull.forEach(({ i, p }) => issues.push(`   • pages[${i}]: ${p.url}`));
+  }
+
+  if (issues.length) {
+    process.stderr.write(`\n📋 Data quality lint: ${issues.length === 1 ? '1 issue' : issues.length + ' issues'}:\n`);
+    issues.forEach(line => process.stderr.write(`   ${line}\n`));
+    process.stderr.write('\n');
+  }
+}
+
 function lintRule14(data) {
   const v14 = [];
   const v16 = [];
@@ -348,12 +385,12 @@ function buildHTML(data) {
       ${(strengths && strengths.length) ? `
       <div class="sr-block sr-strengths">
         <div class="sr-title">✅ Что работает</div>
-        <ul>${strengths.map(s => `<li>${esc(s)}</li>`).join('')}</ul>
+        <ul>${strengths.slice(0, 5).map(s => `<li>${esc(s)}</li>`).join('')}</ul>
       </div>` : ''}
       ${(risks && risks.length) ? `
       <div class="sr-block sr-risks">
         <div class="sr-title">🔴 Главные риски</div>
-        <ul>${risks.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+        <ul>${risks.slice(0, 5).map(r => `<li>${esc(r)}</li>`).join('')}</ul>
       </div>` : ''}
     </div>
   </div>`;
@@ -1368,8 +1405,9 @@ const baseName = `seo-report-${domain}-${datetime}`;
 const htmlPath  = resolve(outputDir, `${baseName}.html`);
 const pdfPath   = resolve(outputDir, `${baseName}.pdf`);
 
-// Pre-render lint: проверь Rule 14 (запрет утечек market segmentation)
+// Pre-render lint: Rule 14/16 (forbidden phrases) + data quality (Rule 2/8/15)
 lintRule14(data);
+lintDataQuality(data);
 
 // Write HTML
 const html = buildHTML(data);

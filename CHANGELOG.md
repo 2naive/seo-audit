@@ -1,5 +1,62 @@
 # Changelog — SEO Audit Skill
 
+## [1.16.1] — 2026-04-10 — Data quality lint (Rule 2/8/15) + cap risks at 5
+
+Патч-релиз: продолжение проверки maxilac.ru v1.15.2. Закрываются три класса дефектов, оставшиеся после v1.16.0:
+
+### Added — `lintDataQuality()` в `generate-report.js`
+
+Новая функция-чек после `lintRule14()` (которая ловит запрещённые фразы). Проверяет три правила и пишет в **stderr** оператору:
+
+1. **Rule 2 (ROI numbers in `impact`)**: regex по `\d+\s*(%|раз|сек|мин|час|млн|тыс|₽|поз|KB|MB)|на N|+N|−N|до N`. Если impact не содержит ничего такого — рекомендация флагается. На v1.15.2 audit:
+   - `recommendations[4]` (Яндекс.Метрика) — нет числа
+   - `recommendations[15]` (семантический HTML5) — нет числа
+   - `recommendations[16]` (hreflang KZ/AM/BY) — нет числа
+
+2. **Rule 8 (топ-5 risks)**: если `risks.length > 5` — флаг. На v1.15.2 агент выдал 7 рисков вместо 5.
+
+3. **Rule 15 (`firstParagraphWords` контракт)**: контракт collector-а — «всегда число ≥ 0, дефолт 0». Если в JSON `null` — флаг. На v1.15.2 audit /sashe/ и /kapli/ имели `null` (агент потерял данные при «осмыслении», как ранее с `bfcacheFailures`).
+
+Все три не блокируют генерацию — оператор видит, корректирует JSON или принимает.
+
+### Changed — рендерер ограничивает risks/strengths сверху до 5
+
+В `execSummaryHtml`: `risks.slice(0, 5)` и `strengths.slice(0, 5)`. Даже если агент вывел 7 рисков, клиент видит топ-5. Это структурный фолбэк по Правилу 8 — независимо от того, сколько агент выдал.
+
+Strengths sliced симметрично — на случай, если когда-то агент решит выдать больше 5.
+
+### Verified
+
+Запустил v1.16.1 на `report-data-maxilac.ru-2026-04-10-0033.json`:
+
+```
+📋 Data quality lint: 8 issues:
+   Rule 8: 7 risks (Правило 8 разрешает 5 максимум)…
+   Rule 2: 3 рекомендаций без конкретной цифры/% в impact:
+      • recommendations[4]: «Установите Яндекс.Метрику…»
+      • recommendations[15]: «Добавьте семантические теги HTML5…»
+      • recommendations[16]: «Настройте hreflang…»
+   Rule 15: 2 страниц с aeoReadiness.firstParagraphWords === null:
+      • pages[2]: https://maxilac.ru/sashe/
+      • pages[3]: https://maxilac.ru/kapli/
+```
+
+Совпало с ручной проверкой 1:1.
+
+В отрисованном HTML risks теперь 5 (был 7) — лишние два пункта обрезались на рендере, клиент видит топ-5.
+
+### Why PATCH
+
+«Новая проверка / уточнение поведения» — патч по таблице из CLAUDE.md. Никаких новых полей в JSON-схеме, никаких новых видимых клиентских секций.
+
+### Files
+
+- `generate-report.js` — функция `lintDataQuality()`, вызов после `lintRule14()`. Срез `slice(0,5)` для risks и strengths в `execSummaryHtml`. `SKILL_VERSION = '1.16.1'`.
+- `SKILL.md` — `skillVersion: 1.16.1`. Содержание правил не менялось.
+- `CLAUDE.md` — версия `1.16.1`.
+
+---
+
 ## [1.16.0] — 2026-04-10 — `effortHours` derived; «Дополнительные технические находки» секция
 
 Минорный релиз: end-to-end проверка отчёта maxilac.ru v1.15.2 показала, что усиленные мягкие инструкции из v1.14.4 (Правило 6 — каждый critical/warning должен быть в `sourceChecks`) **по-прежнему нарушаются** агентом — 11 из 32 проверок без покрытия. Плюс новый класс багов: все 17 рекомендаций имели `effortHours ≠ estimateHours.total`, агент пишет два числа независимо.
