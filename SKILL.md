@@ -98,6 +98,13 @@ DOMAIN=$(echo "$SITE_URL" | sed 's|https\?://||' | sed 's|/.*||')
 DATETIME=$(date +"%Y-%m-%d-%H%M")
 REPORT_BASE="seo-report-${DOMAIN}-${DATETIME}"
 
+# Определение рынка по доменной зоне (НЕ упоминать в отчёте — только для логики формирования рекомендаций)
+MARKET="international"
+case "$DOMAIN" in
+  *.ru|*.su|*.рф|*.xn--p1ai) MARKET="ru" ;;
+esac
+echo "Market: $MARKET (только для логики, в отчёте не упоминать)"
+
 # Полные пути к файлам — используй их везде далее
 REPORT_JSON="${OUTPUT_DIR}/report-data-${DOMAIN}-${DATETIME}.json"
 REPORT_MD="${OUTPUT_DIR}/${REPORT_BASE}.md"
@@ -855,11 +862,14 @@ JSON.stringify((() => {
     "addressCountry": "RU"
   },
   "sameAs": [
-    "{vk.com/...}",
-    "{t.me/...}"
+    "{ссылки на соцсети — см. ниже по market}"
   ]
 }
 ```
+
+**`sameAs` зависит от `projectMeta.market`** (Правило 14):
+- **`market === "ru"`**: только `vk.com/...`, `t.me/...`, `ok.ru/...`, `dzen.ru/...`, `rutube.ru/...`. **Запрещено**: facebook.com, twitter.com, x.com, instagram.com, threads.net (Meta признана экстремистской в РФ; Twitter/X заблокирован)
+- **`market === "international"`**: facebook.com, twitter.com (или x.com), instagram.com, linkedin.com, youtube.com — стандартный набор. Не вставляй vk/ok/dzen — это RU-специфика.
 
 **WebSite** с SearchAction (для Sitelinks Searchbox):
 ```json
@@ -1065,6 +1075,7 @@ for each page in pages:
 - ❌ «sub-agent», «фаза 1/2/3», «Lighthouse desktop preset», «JS-сборщик»
 - ❌ «лимит N в один аудит», «sub-agent fork», «версия скилла»
 - ❌ «мы не проверяли», «не получилось проверить» — заменяй на «требует углублённой работы», «вынесено в отдельный этап»
+- ❌ Любые упоминания рыночной сегментации: «российский рынок», «международный рынок», «по 152-ФЗ», «согласно требованиям РФ», «Роскомнадзор», «Meta признана экстремистской», «Twitter заблокирован». Логика рынка применяется ТИХО — клиент видит готовый набор рекомендаций, без объяснения почему GA нет в списке. Если клиент спросит, объяснит эксперт устно.
 
 Допустимо упоминание **отраслевых инструментов** только если речь о методологии или эталонах: Lighthouse как отраслевой стандарт CWV, Google Search Central как источник, Ahrefs/Semrush как промышленный benchmark. Но не «мы прогнали через Lighthouse».
 
@@ -1142,8 +1153,11 @@ for each page in pages:
 | Открытые AI-краулеры (GPTBot, ClaudeBot) | OpenAI / Anthropic docs | Сайт попадает в обучающие выборки и AI-ответы — новый канал органического трафика |
 | Mobile viewport meta + tap targets ≥ 44px | Google Mobile-Friendly | Mobile-first indexing с 2019. Без viewport — мобильная версия исключается из мобильного индекса |
 | Cookie consent (152-ФЗ для РФ, GDPR для ЕС) | Роскомнадзор / GDPR Article 13 | Юридический риск: штраф до 75 000 ₽ (РФ) / до 4% годового оборота (ЕС) |
-| Яндекс.Метрика установлена | — | Доступ к 70% поисковой аудитории РФ через веб-визор, конверсии, ремаркетинг |
-| Verification в Яндекс.Вебмастер / GSC | — | Доступ к данным об индексации, поисковых запросах, ошибках; ранние уведомления о санкциях |
+| **[market=ru]** Яндекс.Метрика установлена | Яндекс | 70% поисковой аудитории РФ. Без Метрики — слепая зона по основному источнику трафика |
+| **[market=ru]** Верификация в Яндекс.Вебмастер | Яндекс | Доступ к данным об индексации, поисковых запросах, ошибках, ранние уведомления о санкциях |
+| **[market=ru]** Google Analytics на RU-сайте — НЕ устанавливать | 152-ФЗ ст.18.1 + ст.13.11 КоАП | Юридический риск: штрафы до 18 млн ₽ за передачу ПД в США без локализации, блокировка Роскомнадзором |
+| **[market=intl]** Google Analytics 4 / GTM | Google | Стандарт интернет-аналитики: события, конверсии, ремаркетинг, BigQuery export |
+| **[market=intl]** Verification в Google Search Console | Google | Доступ к Search Performance, Index Coverage, Core Web Vitals Field Data, ручным санкциям |
 
 **Применение**: при формировании `impact` ссылайся на одно из значений выше с указанием источника. Например:
 - ✅ «Sitelinks Searchbox в Google по брендовым запросам — это +5-15% CTR (Google Search Central case studies)»
@@ -1441,12 +1455,87 @@ withReserve = subtotal + reserveSum + managementHours
 
 В отчёте обязательно указывай: оценка ориентировочная, основана на отраслевых baseline-часах, не включает стоимость согласований на стороне клиента (типично +30% к календарному сроку, но не к человеко-часам). Калибровка baseline под velocity конкретной команды требует 2–3 реальных проектов.
 
+### Правило 14 — Сегментация рекомендаций по рынку (RU vs international)
+
+Определяется автоматически в инициализации (`projectMeta.market`) по доменной зоне:
+- **`ru`** — `.ru`, `.su`, `.рф` (xn--p1ai)
+- **`international`** — все остальные
+
+⚠️ **Это разделение НЕ упоминается в отчёте.** Никаких слов «российский рынок», «зарубежный рынок», «по 152-ФЗ запрещено», «согласно требованиям РФ» в клиентских текстах. Логика применяется тихо — клиент видит готовый набор рекомендаций под его сайт.
+
+#### Если `market === "ru"`:
+
+**НЕ рекомендовать**:
+- ❌ Установить Google Analytics 4 / GTM (нарушение 152-ФЗ ст. 18.1, штрафы по ст. 13.11 КоАП до 18 млн ₽ + блокировка Роскомнадзором)
+- ❌ Верифицироваться в Google Search Console (передача персональных данных в США без локализации)
+- ❌ Twitter Card / `twitter:` мета-теги (платформа X заблокирована Роскомнадзором с 2022 года)
+- ❌ `og:image` ссылки на Facebook / Instagram изображения
+- ❌ Schema.org `sameAs` с facebook.com / twitter.com / x.com / instagram.com / threads.net (Meta признана экстремистской организацией в РФ; деятельность Twitter/X запрещена)
+- ❌ Embed-виджеты YouTube / Twitter / Instagram (YouTube замедлен, остальные заблокированы)
+
+**ВМЕСТО них рекомендовать**:
+- ✅ Яндекс.Метрика (если нет — критично, RU-рынок без Метрики = слепая зона аналитики)
+- ✅ Top.Mail.Ru (опционально для большой аудитории Mail.Ru Group)
+- ✅ Верификация в Яндекс.Вебмастер
+- ✅ Schema.org `sameAs`: только `vk.com`, `t.me` (Telegram), `ok.ru`, `dzen.ru`, `rutube.ru`, `vc.ru`, `habr.com`
+- ✅ Open Graph остаётся (универсальный, читается VK, Telegram, Slack, корпоративными мессенджерами)
+- ✅ Embed виджеты VK Video, RuTube, Дзен Видео
+
+**В JSON-LD библиотеке** (раздел 2.5.1) для RU-сайтов в `Organization.sameAs` указывай только VK/Telegram/OK/Dzen/RuTube — НЕ Facebook/Twitter/Instagram. В `LocalBusiness.image` — не используй CDN зарубежных соцсетей.
+
+**В `siteData.aiCrawlers`** для RU — особое внимание: если заблокированы все AI-краулеры, упомянуть что доступ к Яндекс GPT и SearchGPT — отдельно.
+
+#### Если `market === "international"`:
+
+**Рекомендовать стандартный набор**:
+- ✅ Google Analytics 4 / GTM
+- ✅ Google Search Console верификация
+- ✅ Twitter Card / `twitter:` мета-теги
+- ✅ Schema.org `sameAs`: facebook.com, twitter.com/x.com, instagram.com, linkedin.com, youtube.com
+- ✅ Embed: YouTube, Twitter/X, Instagram
+
+**НЕ рекомендовать** (специфика RU):
+- ❌ Яндекс.Метрика (если нет — info, не critical; для большинства международных сайтов Яндекс не приоритет)
+- ❌ Top.Mail.Ru
+- ❌ Верификация в Яндекс.Вебмастер (info, не warning)
+- ❌ Schema.org `sameAs` с vk.com / ok.ru / dzen.ru — это RU-специфика
+
+#### Контрольный пример
+
+Сайт `maxilac.ru` (market=ru):
+- ❌ НЕ генерируй рекомендацию «Установите Google Analytics 4»
+- ✅ Генерируй «Установите Яндекс.Метрику» как critical
+- ❌ НЕ генерируй «Добавьте Twitter Card теги»
+- ✅ Generic Open Graph рекомендация остаётся
+- В Schema.org `Organization.sameAs` примере — `["https://vk.com/maxilac", "https://t.me/maxilac"]`, **не** facebook/instagram
+
+Сайт `example.com` (market=international):
+- ✅ Генерируй «Install Google Analytics 4» как стандарт
+- ❌ НЕ генерируй «Установите Яндекс.Метрику» (или максимум info)
+- ✅ Twitter Card / Open Graph — оба
+- В Schema.org `Organization.sameAs` — стандартные facebook/twitter/linkedin
+
+#### Статусы в `technical[]` по market
+
+При заполнении `technical[]` ставь `status` соответствующий рынку:
+
+| check | market=ru status | market=intl status |
+|---|---|---|
+| `Яндекс.Метрика` | `critical` если нет, `ok` если есть | `info` (нет) или `ok` (есть) |
+| `Google Analytics / GTM` | `info` если нет (нейтрально), **`warning`** если есть (юр. риск) | `warning` если нет, `ok` если есть |
+| `Яндекс.Вебмастер (верификация)` | `warning` если нет, `ok` если есть | `info` |
+| `Google Search Console (верификация)` | `info` если нет, **`warning`** если есть на RU-сайте (передача ПД в США) | `warning` если нет, `ok` если есть |
+| `Twitter Card` | `info` если нет (платформа заблокирована в РФ), `info` если есть | `warning` если нет, `ok` если есть |
+| `Open Graph` | `warning` если нет (важен для VK/Telegram) | `warning` если нет |
+
+При формировании `value` для этих проверок не упоминай «по 152-ФЗ», «Роскомнадзор», «заблокировано» — клиенту достаточно нейтрального текста («не установлено», «настроено», «не применимо для основной аудитории»).
+
 ```json
 {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.10.3",
+  "skillVersion": "1.11.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1498,7 +1587,8 @@ withReserve = subtotal + reserveSum + managementHours
     "cms": "1c-bitrix",
     "size": "small",
     "totalUrls": 156,
-    "isMigration": false
+    "isMigration": false,
+    "market": "ru"
   },
   "recommendations": [
     {
