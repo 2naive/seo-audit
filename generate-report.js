@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.15.1';
+const SKILL_VERSION = '1.15.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -148,7 +148,7 @@ const BLOCK_NAMES = {
   '21': 'HTML-структура',
 };
 
-// ── Rule 14 lint: forbidden phrases that leak market segmentation ────────────
+// ── Rule 14/16 lint: forbidden phrases in client text ────────────────────────
 // Запрещено в любом client-facing поле. Renderer проверяет и пишет stderr-warning
 // со списком нарушений, чтобы оператор увидел утечки до отправки клиенту.
 const RULE_14_FORBIDDEN = [
@@ -160,13 +160,35 @@ const RULE_14_FORBIDDEN = [
   /\bКоАП\b/i, /ст\.\s*13\.11/i,
   /требований РФ/i, /закону РФ/i, /закона РФ/i,
 ];
+// Сленг и маркетинговый жаргон, см. Правило 16
+const RULE_16_SLANG = [
+  /каннибализ\w*/i,
+  /\bпросадк\w*/i, /\bпросе(ст|да)\w*/i,
+  /\bзалит\w*/i, /\bзалить\b/i,
+  /\bвыкатить\b/i, /\bвыкатк\w*/i,
+  /\bпрофук\w*/i,
+  /\bнакрутк\w*/i,
+  /\bдропы\b/i,
+  /жирн\w+ ссылк\w+/i,
+  /\bнулёвк\w*/i,
+  /\bпускалк\w*/i, /\bпушк[аи] трафика?/i,
+  /бомба[-‑]запрос\w*/i,
+  /\bсапа\b/i, /миралинкс/i,
+  /выйти в топ/i,
+  /сер[ыо]й SEO/i, /чёрн[ыо]й SEO/i,
+];
 function lintRule14(data) {
-  const violations = [];
+  const v14 = [];
+  const v16 = [];
   const check = (path, text) => {
     if (typeof text !== 'string' || !text) return;
     for (const re of RULE_14_FORBIDDEN) {
       const m = text.match(re);
-      if (m) violations.push({ path, phrase: m[0], snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 40) });
+      if (m) v14.push({ path, phrase: m[0], snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 40) });
+    }
+    for (const re of RULE_16_SLANG) {
+      const m = text.match(re);
+      if (m) v16.push({ path, phrase: m[0], snippet: text.slice(Math.max(0, m.index - 30), m.index + m[0].length + 40) });
     }
   };
   (data.recommendations || []).forEach((r, i) => {
@@ -179,16 +201,24 @@ function lintRule14(data) {
   });
   (data.strengths || []).forEach((s, i) => check(`strengths[${i}]`, s));
   (data.risks || []).forEach((s, i) => check(`risks[${i}]`, s));
+  (data.notChecked || []).forEach((s, i) => check(`notChecked[${i}]`, s));
   if (data.executiveSummary) {
     check('executiveSummary.headline', data.executiveSummary.headline);
     check('executiveSummary.onePhrase', data.executiveSummary.onePhrase);
   }
-  if (violations.length) {
-    process.stderr.write(`\n⚠️  Rule 14 violations: ${violations.length} forbidden phrase(s) leak market segmentation to client text:\n`);
-    violations.slice(0, 20).forEach(v => process.stderr.write(`   • ${v.path}: «${v.phrase}» — …${v.snippet}…\n`));
-    if (violations.length > 20) process.stderr.write(`   …and ${violations.length - 20} more\n`);
-    process.stderr.write(`   See SKILL.md → Правило 14 → таблица замен. Fix the source JSON before sending the report to the client.\n\n`);
+  if (v14.length) {
+    process.stderr.write(`\n⚠️  Rule 14 violations: ${v14.length} forbidden phrase(s) leak market segmentation to client text:\n`);
+    v14.slice(0, 20).forEach(v => process.stderr.write(`   • ${v.path}: «${v.phrase}» — …${v.snippet}…\n`));
+    if (v14.length > 20) process.stderr.write(`   …and ${v14.length - 20} more\n`);
+    process.stderr.write(`   See SKILL.md → Правило 14 → таблица замен. Fix the source JSON before sending the report to the client.\n`);
   }
+  if (v16.length) {
+    process.stderr.write(`\n⚠️  Rule 16 violations: ${v16.length} slang/jargon term(s) in client text:\n`);
+    v16.slice(0, 20).forEach(v => process.stderr.write(`   • ${v.path}: «${v.phrase}» — …${v.snippet}…\n`));
+    if (v16.length > 20) process.stderr.write(`   …and ${v16.length - 20} more\n`);
+    process.stderr.write(`   See SKILL.md → Правило 16 → таблица замен. Replace with formal language.\n`);
+  }
+  if (v14.length || v16.length) process.stderr.write('\n');
 }
 
 // ── Lighthouse metric tooltips ────────────────────────────────────────────────
