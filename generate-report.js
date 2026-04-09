@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.14.4';
+const SKILL_VERSION = '1.15.0';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -352,6 +352,10 @@ function buildHTML(data) {
     const metrics = lighthouse.metrics ?? {};
     const blocking = lighthouse.blockingScripts ?? [];
     const imgOpts  = lighthouse.imgOptimizations ?? [];
+    const unusedJs = lighthouse.unusedJavaScript ?? [];
+    const heavy    = lighthouse.heavyResources ?? [];
+    const unminCss = lighthouse.unminifiedCss ?? [];
+    const unminJs  = lighthouse.unminifiedJs ?? [];
     const bfFails  = lighthouse.bfcacheFailures ?? [];
     return `
     <div class="card" id="lighthouse">
@@ -383,9 +387,28 @@ function buildHTML(data) {
       <div style="font-size:12px;color:#475569">
         ${imgOpts.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code> ${i.savings ? `<span style="color:#dc2626;font-weight:600">— экономия ${esc(i.savings)}</span>` : ''}</div>`).join('')}
       </div>` : ''}
+      ${unusedJs.length ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">Неиспользуемый JavaScript</h3>
+      <div style="font-size:12px;color:#475569">
+        ${unusedJs.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code> <span style="color:#94a3b8">${esc(i.total||'')}</span>${i.wasted ? ` <span style="color:#dc2626;font-weight:600">— впустую ${esc(i.wasted)}${i.wastedPercent ? ` (${esc(i.wastedPercent)})` : ''}</span>` : ''}</div>`).join('')}
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px">Обычно главная причина высокого TBT и долгого TTI — крупные сторонние и шаблонные JS-бандлы, не используемые на этой странице. Решения: code-splitting, defer/async, удаление неиспользуемых модулей.</p>` : ''}
+      ${heavy.length ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">Самые тяжёлые ресурсы</h3>
+      <div style="font-size:12px;color:#475569">
+        ${heavy.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code>${i.total ? ` <span style="color:#dc2626;font-weight:600">— ${esc(i.total)}</span>` : ''}</div>`).join('')}
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px">Топ-5 ресурсов по объёму. Изображения &gt; 200 KB следует переводить в WebP/AVIF и сжимать; крупные JS — делить на чанки.</p>` : ''}
+      ${(unminCss.length || unminJs.length) ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">Не минифицировано</h3>
+      <div style="font-size:12px;color:#475569">
+        ${unminCss.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code>${i.wasted ? ` <span style="color:#dc2626;font-weight:600">— ${esc(i.wasted)}</span>` : ''} <span style="color:#94a3b8">CSS</span></div>`).join('')}
+        ${unminJs.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code>${i.wasted ? ` <span style="color:#dc2626;font-weight:600">— ${esc(i.wasted)}</span>` : ''} <span style="color:#94a3b8">JS</span></div>`).join('')}
+      </div>` : ''}
       ${bfFails.length ? `
       <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">BFCache не работает</h3>
-      <div style="font-size:12px;color:#475569">${bfFails.map(f => `<div>• ${esc(f)}</div>`).join('')}</div>` : ''}
+      <div style="font-size:12px;color:#475569">${bfFails.map(f => `<div>• ${esc(f)}</div>`).join('')}</div>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px">BFCache (back/forward cache) ускоряет навигацию назад/вперёд до мгновенной. Без него каждый возврат — полная перезагрузка страницы. Типичные причины: <code>Cache-Control: no-store</code>, <code>unload</code>-обработчики.</p>` : ''}
     </div>`;
   })() : '';
 

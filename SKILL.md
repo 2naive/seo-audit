@@ -618,14 +618,36 @@ node -e "
 const d = JSON.parse(require('fs').readFileSync('${OUTPUT_DIR}/lighthouse-${DOMAIN}-${DATETIME}.json','utf8'));
 const cats = d.categories;
 const aud = d.audits;
-// Блокирующие скрипты из main-thread-work-breakdown
-const mainThread = aud['main-thread-work-breakdown']?.details?.items || [];
+const shortUrl = u => (u||'').replace(/^https?:\/\/[^/]+/,'').slice(0,80);
+const kb = b => b ? Math.round(b/1024)+'KB' : null;
+// Render-blocking resources (часто пустой если нет крупных синхронных скриптов)
 const blockingScripts = (aud['render-blocking-resources']?.details?.items || [])
-  .map(i => ({ url: (i.url||'').replace(/^https?:\/\/[^/]+/,'').slice(0,60), duration: i.wastedMs ? Math.round(i.wastedMs)+'ms' : null }))
+  .map(i => ({ url: shortUrl(i.url), duration: i.wastedMs ? Math.round(i.wastedMs)+'ms' : null }))
   .slice(0,5);
-// Возможности оптимизации изображений
+// Uses optimized images (legacy формат → WebP/AVIF)
 const imgOpts = (aud['uses-optimized-images']?.details?.items || [])
-  .map(i => ({ url: (i.url||'').replace(/^https?:\/\/[^/]+/,'').slice(0,60), savings: i.wastedBytes ? Math.round(i.wastedBytes/1024)+'KB' : null }))
+  .map(i => ({ url: shortUrl(i.url), savings: kb(i.wastedBytes) }))
+  .slice(0,5);
+// Unused JavaScript — обычно главная причина TBT > 200ms
+const unusedJs = (aud['unused-javascript']?.details?.items || [])
+  .map(i => ({ url: shortUrl(i.url), total: kb(i.totalBytes), wasted: kb(i.wastedBytes), wastedPercent: i.wastedPercent ? Math.round(i.wastedPercent)+'%' : null }))
+  .slice(0,5);
+// Total byte weight — топ самых тяжёлых ресурсов (часто крупные изображения)
+const heavyResources = (aud['total-byte-weight']?.details?.items || [])
+  .map(i => ({ url: shortUrl(i.url), total: kb(i.totalBytes) }))
+  .sort((a,b) => parseInt(b.total||0) - parseInt(a.total||0))
+  .slice(0,5);
+// Unminified CSS / JS
+const unminifiedCss = (aud['unminified-css']?.details?.items || [])
+  .map(i => ({ url: shortUrl(i.url), wasted: kb(i.wastedBytes) }))
+  .slice(0,5);
+const unminifiedJs = (aud['unminified-javascript']?.details?.items || [])
+  .map(i => ({ url: shortUrl(i.url), wasted: kb(i.wastedBytes) }))
+  .slice(0,5);
+// BFCache failures: i.reason is the human-readable reason string
+const bfcacheFailures = (aud['bf-cache']?.details?.items || [])
+  .map(i => i.reason)
+  .filter(r => r)
   .slice(0,5);
 console.log(JSON.stringify({
   performance: Math.round((cats.performance?.score||0)*100),
@@ -642,13 +664,19 @@ console.log(JSON.stringify({
   },
   blockingScripts,
   imgOptimizations: imgOpts,
-  bfcacheFailures: (aud['bf-cache']?.details?.items||[]).map(i=>i.reason).slice(0,3),
+  unusedJavaScript: unusedJs,
+  heavyResources,
+  unminifiedCss,
+  unminifiedJs,
+  bfcacheFailures,
   accessibilityIssues: (aud['color-contrast']?.score===0 ? ['color-contrast: 0'] : [])
     .concat(aud['image-alt']?.score===0 ? ['image-alt: 0'] : [])
     .concat(aud['link-name']?.score===0 ? ['link-name: 0'] : [])
 }));
 " 2>/dev/null
 ```
+
+⚠️ **Важно**: сохраняй результат **точно как вернул скрипт**, не переписывай и не «упрощай». На отчёте maxilac.ru v1.14.0 в JSON оказалось `bfcacheFailures: []`, хотя источник содержал 5 валидных причин — агент потерял данные при «осмыслении». Для Lighthouse-полей действует то же правило, что для `pages[].metrics`: collector/parser — единственный источник истины (Правило 15).
 
 Сохрани результат в поле `lighthouse` в `report-data.json`.
 
@@ -1257,15 +1285,21 @@ assert uncovered == []
 - ✅ «Скорость в зелёной зоне — LCP 1.1s, CLS 0, TBT 40ms»
 - ✅ «Контент индексируется без JS-рендеринга — title/H1/meta идентичны в raw HTML и DOM»
 - ❌ «Сайт работает по HTTPS» (слишком общё)
+- ❌ «HTTPS работает корректно» (нет цифры — клиент прочитает как «всё нормально, ничего интересного»)
 
 Приоритет источников: CWV → Schema.org валидна → корректные мета-теги → аналитика → безопасность.
 
+**Обязательная самопроверка**: каждый пункт `strengths[]` должен содержать **хотя бы одну** конкретную цифру или измеримый факт (значение метрики, число настроек, версия протокола, диапазон). Без цифры — это не сила, а констатация. На отчёте maxilac.ru v1.14.0 4 из 5 strengths не содержали цифр («HTTPS работает корректно», «robots.txt грамотно закрывает», «Footer содержит телефон и адрес»). Конкретика — это `«HSTS preload включён, max-age 31536000, www→non-www через 301»`, а не `«HTTPS работает»`.
+
 ### Правило 8 — Формирование `risks[]` (3–5 пунктов)
 
-Топ-5 `critical` + `priority=high warning`. Формат «**бизнес-последствие → причина**»:
-- ✅ «Потеря rich snippets и Knowledge Panel → отсутствует Schema.org Organization»
-- ✅ «Юридический риск по 152-ФЗ → нет страницы политики конфиденциальности»
-- ❌ «Нет HSTS» (только техфакт)
+Топ-5 `critical` + `priority=high warning`. Формат «**бизнес-последствие → причина с цифрой**»:
+- ✅ «Потеря rich snippets и Knowledge Panel (−5–15% CTR по бренду) → отсутствует Schema.org Organization на 4/4 страниц»
+- ✅ «Юридический риск по 152-ФЗ (штраф до 75 000 ₽) → нет страницы политики конфиденциальности»
+- ❌ «Нет HSTS» (только техфакт без эффекта)
+- ❌ «Слепая зона аналитики» (нет цифры, нет масштаба)
+
+**Обязательная самопроверка**: каждый пункт `risks[]` должен содержать (а) бизнес-эффект и (б) конкретную цифру/масштаб (% потерь, число затронутых страниц, размер штрафа, единицу нормы). Если только бизнес-эффект без цифры — добавь масштаб; если только техфакт без эффекта — переформулируй как последствие.
 
 ### Правило 9 — `executiveSummary.grade` (буквенная оценка)
 
@@ -1684,7 +1718,7 @@ for role in [seo, dev, qa, devops, design, pm, total]:
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.14.4",
+  "skillVersion": "1.15.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1864,7 +1898,11 @@ for role in [seo, dev, qa, devops, design, pm, total]:
     },
     "blockingScripts": [{ "url": "/js/main.js", "duration": "340ms" }],
     "imgOptimizations": [{ "url": "/img/hero.jpg", "savings": "120KB" }],
-    "bfcacheFailures": ["unload-listener", "cache-control-no-store"]
+    "unusedJavaScript": [{ "url": "/bitrix/cache/js/.../template.js", "total": "181KB", "wasted": "138KB", "wastedPercent": "76%" }],
+    "heavyResources": [{ "url": "/local/assets/img/kidsPromo-mob.png", "total": "1759KB" }],
+    "unminifiedCss": [{ "url": "/bitrix/cache/css/.../template.css", "wasted": "5KB" }],
+    "unminifiedJs": [],
+    "bfcacheFailures": ["The page has an unload handler in the main frame.", "Pages with cache-control:no-store cannot enter back/forward cache."]
   },
   "screenshotPaths": {
     "desktop": "${OUTPUT_DIR}/desktop-${DOMAIN}-${DATETIME}.{ext}",  // расширение зависит от формата Lighthouse desktop fullPageScreenshot: обычно .webp, реже .jpg
