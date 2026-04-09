@@ -1109,7 +1109,7 @@ for each page in pages:
 
 Пиши так, как будто отчёт подготовил эксперт по SEO. Версию указывай как `v1.10.1` без слов «скилл» / «инструмент» / «генератор».
 
-### Правило 1 — Каждая рекомендация имеет 7 обязательных полей
+### Правило 1 — Каждая рекомендация имеет 6 обязательных полей
 
 | Поле | Назначение | Пример |
 |---|---|---|
@@ -1118,8 +1118,9 @@ for each page in pages:
 | `impact` | **Бизнес-последствие**, не технический факт | ✅ «Без Schema.org теряете блок Sitelinks Searchbox в Google и Knowledge Panel — CTR в SERP падает на 5–15% по брендовым запросам». ❌ «Отсутствует Schema.org — нужно добавить Schema.org» |
 | `priority` | high / medium / low — влияние на ранжирование | high — критично для индексации/доверия; medium — заметное влияние; low — улучшение |
 | `difficulty` | low / medium / high | low — правка одного файла; medium — несколько файлов; high — структурные изменения |
-| `effortHours` | человеко-часы целым числом из `estimateHours.total` | `"4 часа"`, `"12 часов"`, `"32 часа"` — без диапазонов |
 | `fix` | **Готовый код** для копирования, не инструкция | ✅ полный nginx-блок с `add_header`. ❌ «настройте HSTS в nginx» |
+
+⚠️ **Поле `effortHours` удалено в v1.16.0** — больше не нужно его заполнять. Часы для отображения в карточке рекомендации **вычисляются рендерером автоматически** из `estimateHours.total` (с правильным склонением «час/часа/часов»). Если ты по привычке поставишь `effortHours`, поле **будет проигнорировано** — рендерер всегда читает только `estimateHours.total`. Это устраняет двойной источник истины: на v1.15.2 все 17 рекомендаций имели `effortHours ≠ estimateHours.total`.
 
 Дополнительные поля (рекомендуется):
 - `steps[]` — пошаговый план внедрения (3–5 шагов: «Открыть файл X», «Вставить блок Y», «Проверить через Z»)
@@ -1233,7 +1234,7 @@ for each page in pages:
 | `priority=medium` (любая сложность) | `"month"` |
 | `priority=low` | `"strategy"` (1–3 месяца) |
 
-Внутри фазы упорядочивай: `priority desc → difficulty asc → effortHours asc`.
+Внутри фазы упорядочивай: `priority desc → difficulty asc → estimateHours.total asc`.
 
 ### Правило 5 — Лимит 10–20 рекомендаций в отчёте
 
@@ -1790,7 +1791,7 @@ for path in client_facing_fields:
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.15.2",
+  "skillVersion": "1.16.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1852,7 +1853,6 @@ for path in client_facing_fields:
       "impact": "Бизнес-последствие: «Без Schema.org вы теряете блок Sitelinks Searchbox и rich snippets — CTR в SERP может упасть на 5-15% по брендовым запросам». НЕ технический факт типа «нужно добавить Schema.org».",
       "priority": "high",
       "difficulty": "low",
-      "effortHours": "1-2 часа",
       "phase": "urgent",
       "category": "6.1",
       "categoryLabel": "Блок 6 · Schema.org",

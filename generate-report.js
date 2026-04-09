@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.15.2';
+const SKILL_VERSION = '1.16.0';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -875,6 +875,13 @@ function buildHTML(data) {
   const desktopSrc = screenshotBase64(screenshotPaths?.desktop);
   const mobileSrc  = screenshotBase64(screenshotPaths?.mobile);
 
+  // Pre-compute uncovered tech findings (used in TOC + Uncovered section below)
+  const allSourceChecks = new Set();
+  recs.forEach(r => (r.sourceChecks || []).forEach(s => allSourceChecks.add(s)));
+  const uncoveredTech = (technical || []).filter(t =>
+    (t.status === 'critical' || t.status === 'warning') && !allSourceChecks.has(t.check)
+  );
+
   // ── Section: TOC (table of contents) ────────────────────────────────────────
   const tocHtml = `
   <div class="card toc">
@@ -890,6 +897,7 @@ function buildHTML(data) {
       ${(pages && pages.length) ? `<li><a href="#pages">Анализ ${pages.length} ${pages.length === 1 ? 'типа страниц' : pages.length < 5 ? 'типов страниц' : 'типов страниц'}</a></li>` : ''}
       ${aeoHtml ? `<li><a href="#aeo-geo">AEO / GEO — готовность к AI-поиску</a></li>` : ''}
       ${(technical && technical.length) ? `<li><a href="#technical">Технические проверки по блокам</a></li>` : ''}
+      ${uncoveredTech.length ? `<li><a href="#uncovered-tech">Дополнительные технические находки — ${uncoveredTech.length}</a></li>` : ''}
       ${(desktopSrc || mobileSrc) ? `<li><a href="#screenshots">Скриншоты сайта</a></li>` : ''}
       ${(notChecked && notChecked.length) ? `<li><a href="#not-checked">За рамками этого отчёта</a></li>` : ''}
       <li><a href="#methodology">Методология</a></li>
@@ -1021,6 +1029,35 @@ function buildHTML(data) {
         </tbody>
       </table>
     </div>`).join('')}
+  </div>` : '';
+
+  // ── Section: Uncovered tech findings (Rule 6 fallback) ─────────────────────
+  // Структурный фолбэк на случай когда агент не следует Правилу 6 (на v1.15.2
+  // 11/32 critical/warning остались без sourceChecks даже после усиленных
+  // инструкций v1.14.4). uncoveredTech предвычислен выше для TOC.
+  const uncoveredHtml = uncoveredTech.length ? `
+  <div class="card" id="uncovered-tech">
+    <h2>Дополнительные технические находки</h2>
+    <p style="color:#475569;font-size:14px;margin-bottom:16px">
+      Дополнительные пункты, обнаруженные при техническом аудите. Каждый требует отдельного решения после внедрения основных задач из Плана действий.
+    </p>
+    <table style="font-size:13px">
+      <thead>
+        <tr>
+          <th style="text-align:left">Находка</th>
+          <th style="text-align:left;width:120px">Статус</th>
+          <th style="text-align:left;width:50%">Текущее состояние</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${uncoveredTech.map(t => `
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-weight:500">${esc(t.check)}${t.block ? ` <span style="color:#94a3b8;font-weight:400">· Блок ${esc(String(t.block))}</span>` : ''}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${severityBadge(t.status)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#475569;word-break:break-word">${esc(t.value ?? '')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
   </div>` : '';
 
   // ── Section: Screenshots ────────────────────────────────────────────────────
@@ -1301,6 +1338,7 @@ function buildHTML(data) {
   ${pagesHtml}
   ${aeoHtml}
   ${techHtml}
+  ${uncoveredHtml}
   ${screenshotsHtml}
   ${notCheckedHtml}
   ${methodologyHtml}
