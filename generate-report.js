@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.16.1';
+const SKILL_VERSION = '1.16.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -205,6 +205,38 @@ function lintDataQuality(data) {
   if (aeoNull.length) {
     issues.push(`Rule 15: ${aeoNull.length} страниц с pages[].metrics.aeoReadiness.firstParagraphWords === null. По контракту collector-а это всегда число ≥ 0:`);
     aeoNull.forEach(({ i, p }) => issues.push(`   • pages[${i}]: ${p.url}`));
+  }
+
+  // Rule 1: для CMS=Bitrix каждый fix должен содержать Bitrix-специфичные маркеры
+  const cms = (data.cmsInfo || data.projectMeta?.cms || '').toString().toLowerCase();
+  if (/bitrix/.test(cms)) {
+    const bitrixMarker = /SetPageProperty|local\/templates|bitrix:|\$APPLICATION|маркетинг|инфоблок|iblock|админк|админ-панел/i;
+    const nonBitrixFixes = (data.recommendations || [])
+      .map((r, i) => ({ i, r }))
+      .filter(({ r }) => r.fix && !bitrixMarker.test(r.fix));
+    if (nonBitrixFixes.length) {
+      issues.push(`Rule 1: ${nonBitrixFixes.length} рекомендаций без Bitrix-специфичных маркеров в fix (CMS = ${data.cmsInfo || cms}). Fix должен указывать КУДА в Bitrix вставить код (path к шаблону, админка, инфоблок):`);
+      nonBitrixFixes.slice(0, 8).forEach(({ i, r }) => issues.push(`   • recommendations[${i}]: «${r.title.slice(0, 60)}…»`));
+      if (nonBitrixFixes.length > 8) issues.push(`   …и ещё ${nonBitrixFixes.length - 8}`);
+    }
+  }
+
+  // Мета-комментарии о процессе проверки в value-полях (Rule 0: tone)
+  // На v1.15.2 в siteData.http2.version и technical[].value утекли фразы вроде
+  // "не удалось однозначно определить", "предположительно", "curl не поддерживает".
+  const META_LEAK = /предположительно|не удалось определить|не удалось однозначно|curl не поддерживает|невозможно проверить|сложно определить/i;
+  const metaLeaks = [];
+  (data.technical || []).forEach((t, i) => {
+    if (typeof t.value === 'string' && META_LEAK.test(t.value)) {
+      metaLeaks.push({ path: `technical[${i}].value (${t.check})`, snippet: t.value.slice(0, 100) });
+    }
+  });
+  if (data.siteData?.http2?.version && META_LEAK.test(String(data.siteData.http2.version))) {
+    metaLeaks.push({ path: 'siteData.http2.version', snippet: String(data.siteData.http2.version).slice(0, 100) });
+  }
+  if (metaLeaks.length) {
+    issues.push(`Tone: ${metaLeaks.length} мета-комментариев о процессе проверки в value-полях (это раскрывает что проверка не сработала / автоматическая):`);
+    metaLeaks.slice(0, 5).forEach(m => issues.push(`   • ${m.path}: «${m.snippet}»`));
   }
 
   if (issues.length) {
