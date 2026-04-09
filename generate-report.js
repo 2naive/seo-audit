@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.11.0';
+const SKILL_VERSION = '1.12.0';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -378,70 +378,51 @@ function buildHTML(data) {
     const pm = data.projectMeta || {};
     const stages = ee.stages || [];
     const totals = ee.totals || {};
-    const reserve = ee.reserveHours || {};
-    const reservePct = ee.reservePercent || 0;
-    const mgmtH = ee.managementHours || 0;
     const top = ee.topByRice || [];
 
+    // 3 этапа соответствуют Roadmap (Срочно/Месяц/Стратегия)
     const stageColors = {
-      1: '#dc2626', // red — блокеры
-      2: '#ea580c', // orange — pattern fixes
-      3: '#16a34a', // green — site-wide
-      4: '#64748b', // muted — полировка
+      1: '#dc2626', // red — Критичные блокеры
+      2: '#ea580c', // orange — Важные изменения
+      3: '#16a34a', // green — Желательные улучшения
     };
+
+    // Отрисовка ячейки роли: пустые значения как тире, не "0"
+    const cell = v => (v && v > 0) ? String(v) : '<span style="color:#cbd5e1">—</span>';
 
     const stageRows = stages.map(s => {
       const h = s.hours || {};
       return `
       <tr>
-        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:6px;height:24px;background:${stageColors[s.id] || '#64748b'};border-radius:2px"></div>
+        <td style="padding:12px;border-bottom:1px solid #f1f5f9">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:6px;height:32px;background:${stageColors[s.id] || '#64748b'};border-radius:2px;flex-shrink:0"></div>
             <div>
               <div style="font-weight:700;font-size:13px">${s.id}. ${esc(s.label)}</div>
               <div style="font-size:11px;color:var(--muted)">${esc(s.deadline || '')} · ${s.taskCount || 0} ${s.taskCount === 1 ? 'задача' : s.taskCount < 5 ? 'задачи' : 'задач'}</div>
             </div>
           </div>
         </td>
-        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.dev || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.seo || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.qa || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${h.content || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${h.total || 0}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${cell(h.seo)}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${cell(h.dev)}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${cell(h.qa)}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${cell(h.devops)}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${cell(h.design)}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-variant-numeric:tabular-nums">${cell(h.pm)}</td>
+        <td style="padding:12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${h.total || 0}</td>
       </tr>`;
     }).join('');
 
-    const reserveRow = (reservePct > 0) ? `
-      <tr style="background:#fef9c3">
-        <td style="padding:10px 12px;border-bottom:1px solid #fde68a">
-          <div style="font-weight:600;font-size:13px;color:#92400e">Резерв на неопределённость (${reservePct}%)</div>
-          <div style="font-size:11px;color:#92400e">${esc(pm.size || '')} проект</div>
-        </td>
-        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.dev || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.seo || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.qa || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-variant-numeric:tabular-nums;color:#92400e">${reserve.content || 0}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#92400e">${reserve.total || 0}</td>
-      </tr>` : '';
-
-    const mgmtRow = (mgmtH > 0) ? `
-      <tr style="background:#eff6ff">
-        <td style="padding:10px 12px;border-bottom:1px solid #dbeafe">
-          <div style="font-weight:600;font-size:13px;color:#1e40af">Менеджмент / коммуникация</div>
-          <div style="font-size:11px;color:#1e40af">~10% от Dev+SEO часов</div>
-        </td>
-        <td colspan="4" style="padding:10px 12px;border-bottom:1px solid #dbeafe;text-align:right;font-size:11px;color:#1e40af">PM, согласования</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #dbeafe;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#1e40af">${mgmtH}</td>
-      </tr>` : '';
-
     const totalRow = `
       <tr style="background:#0f172a;color:#fff">
-        <td style="padding:14px 12px;font-weight:800;font-size:14px">ИТОГО</td>
-        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.dev || 0}</td>
-        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.seo || 0}</td>
-        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.qa || 0}</td>
-        <td style="padding:14px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.content || 0}</td>
-        <td style="padding:14px 12px;text-align:right;font-weight:900;font-size:18px;font-variant-numeric:tabular-nums;color:#fbbf24">${totals.withReserve || totals.subtotal || 0} ч</td>
+        <td style="padding:16px 12px;font-weight:800;font-size:14px">ИТОГО</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.seo || 0}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.dev || 0}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.qa || 0}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.devops || 0}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.design || 0}</td>
+        <td style="padding:16px 8px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${totals.pm || 0}</td>
+        <td style="padding:16px 12px;text-align:right;font-weight:900;font-size:18px;font-variant-numeric:tabular-nums;color:#fbbf24">${totals.total || 0} ч</td>
       </tr>`;
 
     const topRows = top.slice(0, 10).map((t, i) => `
@@ -459,47 +440,47 @@ function buildHTML(data) {
     <div class="card" id="effort">
       <h2>Оценка трудозатрат на внедрение</h2>
       <p style="color:#475569;font-size:14px;margin-bottom:6px">
-        Оценка построена на отраслевых baseline-часах с поправками на CMS, объём сайта, сложность правок и QA. Без учёта согласований на стороне клиента.
+        Сводка по ролям в команде и этапам внедрения. Оценка учитывает специфику CMS, объём правок и сложность регрессионного тестирования.
       </p>
-      ${pm.cms || pm.size ? `<p style="color:var(--muted);font-size:12px;margin-bottom:18px">CMS: <strong>${esc(pm.cms || '?')}</strong> · Размер сайта: <strong>${esc(pm.size || '?')}</strong>${pm.totalUrls ? ` (${pm.totalUrls} URL в sitemap)` : ''}</p>` : ''}
+      ${pm.cms || pm.totalUrls ? `<p style="color:var(--muted);font-size:12px;margin-bottom:18px">CMS: <strong>${esc(pm.cms || '?')}</strong>${pm.totalUrls ? ` · Объём: <strong>${pm.totalUrls} URL</strong>` : ''}</p>` : ''}
 
       <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 10px">Сводка по этапам внедрения</h3>
       <table style="font-size:13px">
         <thead>
           <tr>
             <th style="text-align:left">Этап</th>
-            <th style="text-align:right">Dev</th>
-            <th style="text-align:right">SEO</th>
-            <th style="text-align:right">QA</th>
-            <th style="text-align:right">Content</th>
-            <th style="text-align:right">Всего</th>
+            <th style="text-align:right;width:55px">SEO</th>
+            <th style="text-align:right;width:55px">Dev</th>
+            <th style="text-align:right;width:55px">QA</th>
+            <th style="text-align:right;width:65px">DevOps</th>
+            <th style="text-align:right;width:60px">Design</th>
+            <th style="text-align:right;width:55px">PM</th>
+            <th style="text-align:right;width:80px">Всего</th>
           </tr>
         </thead>
         <tbody>
           ${stageRows}
-          ${reserveRow}
-          ${mgmtRow}
           ${totalRow}
         </tbody>
       </table>
 
       ${top.length ? `
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:24px 0 10px">Топ-10 задач по приоритету (RICE-score)</h3>
-      <p style="color:var(--muted);font-size:12px;margin-bottom:8px">RICE = (Reach × Impact × Confidence) / Effort. Чем выше — тем больше эффект на единицу затрат.</p>
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:24px 0 10px">Топ-10 задач по приоритету</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px">Сортировка по соотношению эффекта на единицу трудозатрат.</p>
       <table style="font-size:13px">
         <thead>
           <tr>
             <th style="text-align:center;width:32px">#</th>
             <th style="text-align:left">Задача</th>
             <th style="text-align:right;width:80px">Часы</th>
-            <th style="text-align:right;width:80px">RICE</th>
+            <th style="text-align:right;width:80px">Приоритет</th>
           </tr>
         </thead>
         <tbody>${topRows}</tbody>
       </table>` : ''}
 
       <div style="margin-top:18px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e">
-        <strong>Дисклеймер</strong>: оценка ориентировочная. Реальные часы зависят от velocity команды, доступа к коду и инфраструктуре, скорости согласований. Не включает: стоимость согласований на стороне клиента (типично +30% к календарному сроку), миграционные риски сверх перечисленных.
+        <strong>Дисклеймер</strong>: оценка ориентировочная. Реальные часы зависят от доступа к коду и инфраструктуре, скорости согласований. Не включает: стоимость согласований на стороне клиента (типично +30% к календарному сроку), миграционные риски сверх перечисленных.
       </div>
     </div>`;
   })() : '';

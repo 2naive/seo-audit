@@ -1090,7 +1090,7 @@ for each page in pages:
 | `impact` | **Бизнес-последствие**, не технический факт | ✅ «Без Schema.org теряете блок Sitelinks Searchbox в Google и Knowledge Panel — CTR в SERP падает на 5–15% по брендовым запросам». ❌ «Отсутствует Schema.org — нужно добавить Schema.org» |
 | `priority` | high / medium / low — влияние на ранжирование | high — критично для индексации/доверия; medium — заметное влияние; low — улучшение |
 | `difficulty` | low / medium / high | low — правка одного файла; medium — несколько файлов; high — структурные изменения |
-| `effortHours` | человеко-часы из таблицы | low → "1–2 часа", medium → "4–8 часов", high → "1–3 дня" |
+| `effortHours` | человеко-часы целым числом из `estimateHours.total` | `"4 часа"`, `"12 часов"`, `"32 часа"` — без диапазонов |
 | `fix` | **Готовый код** для копирования, не инструкция | ✅ полный nginx-блок с `add_header`. ❌ «настройте HSTS в nginx» |
 
 Дополнительные поля (рекомендуется):
@@ -1165,6 +1165,8 @@ for each page in pages:
 - ❌ «Без Schema.org нет rich snippets» (нет цифры, нет источника)
 
 ### Правило 3 — Дедупликация по URL
+
+(старая таблица «low → 1–2 часа, medium → 4–8 часов» удалена в v1.12.0 — теперь однозначные целые часы из расчёта в Правиле 13)
 
 Если одна проблема обнаружена на N страницах — это **одна** рекомендация с массивом `affectedUrls[]`, не N копий.
 
@@ -1288,172 +1290,184 @@ for each page in pages:
 
 ### Правило 13 — Оценка трудозатрат на внедрение (effortEstimate)
 
-После формирования всех `recommendations[]` посчитай детальную оценку трудозатрат для **технических** правок (контент/off-page не считаем — они вне scope аудита). Результат сохрани в верхнеуровневый объект `effortEstimate{}`.
+После формирования всех `recommendations[]` посчитай оценку трудозатрат для **технических** правок. Контент клиент пишет сам — за контент не оцениваем. Off-page вне scope. Результат сохрани в верхнеуровневый объект `effortEstimate{}`.
+
+#### Принципы
+
+1. **Целые часы**. Все часы округляем вверх (`Math.ceil`) до целого. Минимум — 1 час, если роль участвует. Нет «1.5 часа», «2.95 часа», «0.85 часа» — клиент воспринимает дробные числа как неуверенность.
+2. **Однозначная оценка** — никаких диапазонов («1–2 часа», «4–8 часов»). Сразу одно конкретное число.
+3. **Резерв включён в часы каждой задачи**, не отдельной строкой. Клиент не должен видеть «Резерв на неопределённость X%» — это намёк что оценка нечёткая. Резерв применяется к baseline до округления через множитель.
+4. **PM = полноценная роль с прямой оценкой**, не отдельная строка «менеджмент». Колонка PM в каждом этапе. Расчёт: PM = 23% от суммы остальных ролей.
+5. **6 ролей**: SEO, Dev, QA, DevOps, Design, PM. Content исключён — за контент отвечает клиент.
+6. **3 этапа** соответствуют 3 фазам Roadmap.
+7. **Не показывай клиенту** размер проекта (`small`/`medium`/etc) в виде слова — только число URL.
 
 #### Шаг 13.1 — для каждой рекомендации определи `taskType` и `scope`
 
-Закрытый словарь `taskType`:
-
-| taskType | Что покрывает |
-|---|---|
-| `meta_tags` | title, meta description, H1, OG, twitter card |
-| `canonical` | canonical-теги, дубли URL |
-| `redirect` | 301/302, цепочки редиректов, www/http |
-| `schema` | JSON-LD: Organization, WebSite, Product, Article, FAQ, BreadcrumbList |
-| `cwv` | LCP, CLS, INP, TBT, оптимизация изображений |
-| `robots` | robots.txt, AI-краулеры |
-| `sitemap` | sitemap.xml, sitemap-index, llms.txt |
-| `hreflang` | мультиязычные теги |
-| `duplicates` | дубли контента, параметрические URL |
-| `linking` | внутренняя перелинковка, orphan pages, anchor text |
-| `http_codes` | 4xx/5xx, soft 404, кастомная 404 |
-| `mobile` | viewport, tap targets, content parity |
-| `alt_images` | alt-теги, битые картинки |
-| `security` | HSTS, CSP, X-Frame-Options, XSS-protection |
-| `analytics` | GA4, Метрика, верификации, GTM |
-| `eeat` | страницы О компании / Контакты / Политика, footer, авторы |
-| `other` | всё остальное |
-
-Если тип не определяется однозначно — `other`, и применяется fallback по severity (low=2 ч, medium=8 ч, high=24 ч).
+Закрытый словарь `taskType` (см. предыдущую версию — без изменений): meta_tags, canonical, redirect, schema, cwv, robots, sitemap, hreflang, duplicates, linking, http_codes, mobile, alt_images, security, analytics, eeat, other.
 
 Закрытый словарь `scope`:
-- `single` — правка на одной странице (например, добавить H1 на главную)
+- `single` — правка на одной странице
 - `template` — правка в шаблоне CMS, влияет на N страниц одного типа
 - `site_wide` — миграция, требует регрессионного QA
 
 #### Шаг 13.2 — baseline-часы по типу × scope
 
-Используй таблицу базовых часов:
-
 | taskType | single | template | site_wide |
 |---|---:|---:|---:|
-| meta_tags | 0.2 | 2 | 10 |
-| canonical | 0.2 | 1.5 | 6 |
-| redirect | 0.1 | 1 | 8 |
-| schema | — | 6 | 16 |
-| cwv | — | 6 | 28 |
-| robots | — | 1.5 | 3 |
-| sitemap | — | 1.5 | 3 |
-| hreflang | — | 9 | 28 |
-| duplicates | 0.5 | 3 | 16 |
-| linking | — | 6 | 36 |
-| http_codes | 0.3 | 3 | 8 |
-| mobile | — | 4 | 16 |
-| alt_images | 0.05 | 1.5 | 7 |
-| security | 0.5 | 1.5 | 4 |
-| analytics | 0.5 | 1.5 | 3 |
-| eeat | 1 | 4 | — |
-| other | по severity (см. выше) | | |
+| meta_tags | 1 | 3 | 12 |
+| canonical | 1 | 2 | 8 |
+| redirect | 1 | 2 | 10 |
+| schema | — | 6 | 18 |
+| cwv | — | 8 | 32 |
+| robots | — | 2 | 4 |
+| sitemap | — | 2 | 4 |
+| hreflang | — | 10 | 32 |
+| duplicates | 1 | 4 | 18 |
+| linking | — | 8 | 40 |
+| http_codes | 1 | 4 | 10 |
+| mobile | — | 6 | 18 |
+| alt_images | 1 | 2 | 8 |
+| security | 1 | 2 | 6 |
+| analytics | 1 | 2 | 4 |
+| eeat | 2 | 6 | — |
+| other | low=4, medium=12, high=32 | | |
+
+Минимум для любой задачи — **1 час** (даже если расчёт даёт меньше).
 
 #### Шаг 13.3 — множители к baseline
 
 ```
-effort = baseline × M_scale × M_cms × M_risk × M_qa
+raw_effort = baseline × M_scale × M_cms × M_risk × M_qa × M_reserve
+effort = max(1, ceil(raw_effort))   // целое число, минимум 1
 ```
 
 | Множитель | Условие | Значение |
 |---|---|---:|
-| **M_scale** | affected_urls ≤ 50 | 1.0 |
+| **M_scale** | affectedUrls ≤ 50 | 1.0 |
 | | 50 < urls ≤ 500 | 1.2 |
 | | 500 < urls ≤ 5 000 | 1.5 |
-| | urls > 5 000 (enterprise) | 2.0 |
-| **M_cms** | WordPress / Bitrix / Tilda — стандарт | 1.0 |
-| | Кастомный фреймворк, есть доступ к коду | 1.3 |
-| | Legacy / самописная CMS без документации | 1.6 |
-| | SPA/SSR (Next.js, Nuxt) — для CWV/schema | 1.4 |
-| **M_risk** | Изолированная правка (single) | 1.0 |
-| | Затрагивает шаблон, без миграции URL | 1.2 |
-| | Миграция URL / редиректы пакетом / site_wide | 1.5 |
-| **M_qa** | Без отдельного QA (single, template ≤ 50 URL) | 1.0 |
-| | С регрессионным QA (рекомендуется при site_wide) | 1.25 |
+| | urls > 5 000 | 2.0 |
+| **M_cms** | WordPress / Bitrix / Tilda | 1.0 |
+| | Кастомный фреймворк | 1.3 |
+| | Legacy / самописная без доки | 1.6 |
+| | SPA/SSR (Next.js, Nuxt) для CWV/schema | 1.4 |
+| **M_risk** | single | 1.0 |
+| | template без миграции | 1.2 |
+| | site_wide / миграция URL | 1.5 |
+| **M_qa** | single, template ≤ 50 URL | 1.0 |
+| | template с большим scope или site_wide | 1.25 |
+| **M_reserve** | по `_sizeKey` (см. ниже) | 1.15–1.40 |
 
-`projectMeta.cms` определяется из шага 1.7 (CMS detection), `projectMeta.size` — по `pageTypeStats.totalUrls`:
-- ≤ 10 URL → `landing`
-- ≤ 100 URL → `small`
-- ≤ 1000 URL → `medium`
-- ≤ 10000 URL → `ecommerce`
-- > 10000 URL → `enterprise`
+**`M_reserve` — резерв на неопределённость** (встроен в каждую задачу, не показывается клиенту отдельно):
 
-#### Шаг 13.4 — распределение по ролям
+| `pageTypeStats.totalUrls` (внутренний `_sizeKey`) | M_reserve |
+|---|---:|
+| ≤ 10 (`compact`) | 1.15 |
+| ≤ 100 (`small`) | 1.20 |
+| ≤ 1 000 (`medium`) | 1.25 |
+| ≤ 10 000 (`large`) | 1.30 |
+| > 10 000 (`enterprise`) | 1.40 |
 
-После получения `effort` распределяй часы по ролям (`Dev`/`SEO`/`QA`/`Content`):
+Внутренний `_sizeKey` сохраняется в `projectMeta._sizeKey` (поле начинается с подчёркивания — это внутренняя метка, **не показывается** в HTML отчёте). В `projectMeta.totalUrls` остаётся число URL — его можно показывать.
 
-| taskType | Dev | SEO | QA | Content |
-|---|---:|---:|---:|---:|
-| meta_tags (template) | 40% | 50% | 10% | — |
-| meta_tags (single, массово) | 10% | 10% | — | 80% |
-| canonical / redirect | 80% | 15% | 5% | — |
-| schema | 70% | 25% | 5% | — |
-| cwv | 90% | 5% | 5% | — |
-| robots / sitemap | 20% | 75% | 5% | — |
-| hreflang | 70% | 20% | 10% | — |
-| duplicates | 60% | 30% | 10% | — |
-| http_codes | 95% | 5% | — | — |
-| mobile | 85% | 10% | 5% | — |
-| linking | 30% | 60% | 10% | — |
-| alt_images | 30% | 10% | — | 60% |
-| security | 95% | 5% | — | — |
-| analytics | 50% | 45% | 5% | — |
-| eeat | 20% | 30% | — | 50% |
+#### Шаг 13.4 — распределение по 6 ролям
 
-Сохраняй результат в `recommendations[].estimateHours { dev, seo, qa, content, total }`.
+После получения `effort` распределяй по `SEO / Dev / QA / DevOps / Design / PM`. Content исключён. PM считается **отдельно** в шаге 13.7.
+
+| taskType | SEO | Dev | QA | DevOps | Design |
+|---|---:|---:|---:|---:|---:|
+| meta_tags | 50% | 40% | 10% | — | — |
+| canonical | 15% | 80% | 5% | — | — |
+| redirect | 10% | 60% | 5% | 25% | — |
+| schema | 25% | 70% | 5% | — | — |
+| cwv (frontend) | 5% | 80% | 5% | 10% | — |
+| cwv (server-side / HTTP/2 / cache) | 5% | 30% | 5% | 60% | — |
+| robots / sitemap | 70% | 25% | 5% | — | — |
+| hreflang | 25% | 65% | 10% | — | — |
+| duplicates | 30% | 60% | 10% | — | — |
+| linking | 60% | 30% | 10% | — | — |
+| http_codes | 5% | 50% | 5% | 40% | — |
+| mobile | 10% | 65% | 10% | — | 15% |
+| alt_images | 60% | 40% | — | — | — |
+| security | 5% | 25% | — | 70% | — |
+| analytics | 60% | 40% | — | — | — |
+| eeat | 40% | 30% | — | — | 30% |
+
+Каждая роль округляется вверх до целого (`Math.ceil`). Если процент роли = 0%, в JSON ставь `0` (не пропускай поле).
+
+Сохраняй результат в `recommendations[].estimateHours { seo, dev, qa, devops, design, pm: 0, total }`. Поле `pm` для каждой задачи = 0 (PM считается на этапе сводки).
 
 #### Шаг 13.5 — RICE-приоритет
 
-Для каждой рекомендации посчитай `riceScore`:
-
 ```
-riceScore = (Reach × Impact × Confidence) / Effort_total_hours
+riceScore = (Reach × Impact × Confidence) / total_hours
 ```
 
 - `Reach` — `affectedUrls.length` (если 0 — `pageTypeStats.totalUrls` для site_wide, иначе 1)
 - `Impact` — по severity: critical=3, high=2, medium=1, low=0.5
-- `Confidence` — 1.0 если есть прямое доказательство в `sourceChecks[]`; 0.8 если экспертная гипотеза; 0.5 если предположение
+- `Confidence` — 1.0 (доказательство в `sourceChecks[]`); 0.8 (экспертная гипотеза); 0.5 (предположение)
 
 Округляй до 1 знака после точки.
 
-#### Шаг 13.6 — группировка в 4 этапа
+#### Шаг 13.6 — группировка в 3 этапа
 
-Каждой рекомендации присваивай `stage`:
+Этапы соответствуют 3 фазам Roadmap (Срочно / В этот месяц / Стратегия):
 
-| stage | Условие | Что входит |
+| stage | Название | Условие |
 |---|---|---|
-| 1 | severity=critical И taskType ∈ {http_codes, robots, sitemap, redirect, security} | Блокеры индексации, безопасности |
-| 2 | priority=high И стадия ≠ 1 | Pattern fixes — meta_tags, schema, canonical, дубли, базовый CWV |
-| 3 | priority=medium ИЛИ scope=site_wide | Site-wide и долгосрочное (глубокий CWV, перелинковка, hreflang) |
-| 4 | priority=low | Полировка (alt-теги, мелкие low-priority задачи) |
+| **1** | **Критичные блокеры** | severity=critical И/ИЛИ phase=urgent |
+| **2** | **Важные изменения** | priority=high И/ИЛИ phase=month |
+| **3** | **Желательные улучшения** | priority=medium ИЛИ priority=low ИЛИ phase=strategy |
 
 Сортировка внутри этапа: по `riceScore desc`.
 
-#### Шаг 13.7 — сводка по этапам и резерв
+#### Шаг 13.7 — сводка по этапам, PM, итоги
 
-Заполни `effortEstimate.stages[]` — для каждого этапа суммируй часы по ролям из всех `recommendations[]` с этим `stage`.
+Для каждого этапа суммируй часы по 5 базовым ролям (SEO, Dev, QA, DevOps, Design) — `stageBaseHours`.
 
-Резерв на неопределённость по `projectMeta.size`:
-
-| size | reservePercent |
-|---|---:|
-| landing | 15 |
-| small | 20 |
-| medium | 25 |
-| ecommerce | 30 |
-| enterprise | 40 |
-
+**PM рассчитывается отдельно для каждого этапа**:
 ```
-reserveHours = subtotalByRole × (reservePercent / 100)
-managementHours = round((dev + seo) × 0.10)  // ≈10% PM/коммуникация
-withReserve = subtotal + reserveSum + managementHours
+stage.pm = ceil(0.23 × (seo + dev + qa + devops + design))
+stage.total = seo + dev + qa + devops + design + pm
 ```
 
-Заполни `effortEstimate.totals` со всеми ролями.
+Заполни `effortEstimate.stages[]` — массив из 3 объектов:
+```json
+{
+  "id": 1,
+  "label": "Критичные блокеры",
+  "deadline": "1–2 недели",
+  "taskCount": N,
+  "hours": { "seo": N, "dev": N, "qa": N, "devops": N, "design": N, "pm": N, "total": N }
+}
+```
+
+Метки этапов:
+- 1 → «Критичные блокеры», `deadline: "1–2 недели"`
+- 2 → «Важные изменения», `deadline: "до 30 дней"`
+- 3 → «Желательные улучшения», `deadline: "1–3 месяца"`
+
+**Итоги** (`effortEstimate.totals`) — суммирование по этапам:
+```json
+{
+  "seo": N, "dev": N, "qa": N, "devops": N, "design": N, "pm": N,
+  "total": N
+}
+```
+
+⚠️ **Удалить из JSON-схемы**:
+- `reservePercent`, `reserveHours` — резерв уже встроен в часы задач через `M_reserve`
+- `managementHours` — PM теперь полноценная роль в каждом этапе
+- `withReserve` — итог теперь честный без отдельного резерва
 
 #### Шаг 13.8 — топ-10 задач по RICE
 
-Заполни `effortEstimate.topByRice[]` — отсортированные по `riceScore desc`, первые 10 рекомендаций. Для каждой: `{title, stage, totalHours, riceScore}`.
+Заполни `effortEstimate.topByRice[]` — отсортированные по `riceScore desc`, первые 10. Для каждой: `{title, stage, totalHours, riceScore}`.
 
 #### Дисклеймер
 
-В отчёте обязательно указывай: оценка ориентировочная, основана на отраслевых baseline-часах, не включает стоимость согласований на стороне клиента (типично +30% к календарному сроку, но не к человеко-часам). Калибровка baseline под velocity конкретной команды требует 2–3 реальных проектов.
+В отчёте указывай: оценка ориентировочная, не включает стоимость согласований на стороне клиента (типично +30% к календарному сроку). **Не упоминай**: «отраслевые baseline-часы», «формула», «calibration», «множители» — это раскрывает что расчёт автоматический.
 
 ### Правило 14 — Сегментация рекомендаций по рынку (RU vs international)
 
@@ -1535,7 +1549,7 @@ withReserve = subtotal + reserveSum + managementHours
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.11.0",
+  "skillVersion": "1.12.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
@@ -1585,10 +1599,10 @@ withReserve = subtotal + reserveSum + managementHours
   ],
   "projectMeta": {
     "cms": "1c-bitrix",
-    "size": "small",
     "totalUrls": 156,
     "isMigration": false,
-    "market": "ru"
+    "market": "ru",
+    "_sizeKey": "small"
   },
   "recommendations": [
     {
@@ -1604,10 +1618,13 @@ withReserve = subtotal + reserveSum + managementHours
       "taskType": "schema",
       "scope": "template",
       "estimateHours": {
-        "dev": 4.0,
-        "seo": 1.5,
-        "qa": 0.5,
-        "total": 6.0
+        "seo": 2,
+        "dev": 5,
+        "qa": 1,
+        "devops": 0,
+        "design": 0,
+        "pm": 0,
+        "total": 8
       },
       "riceScore": 28.5,
       "stage": 2,
@@ -1771,46 +1788,30 @@ withReserve = subtotal + reserveSum + managementHours
       {
         "id": 1,
         "label": "Критичные блокеры",
-        "deadline": "1 спринт (1-2 недели)",
+        "deadline": "1–2 недели",
         "taskCount": 4,
-        "hours": { "dev": 12, "seo": 4, "qa": 2, "content": 0, "total": 18 }
+        "hours": { "seo": 5, "dev": 14, "qa": 2, "devops": 6, "design": 0, "pm": 7, "total": 34 }
       },
       {
         "id": 2,
-        "label": "Pattern fixes — high impact",
-        "deadline": "2-4 недели",
+        "label": "Важные изменения",
+        "deadline": "до 30 дней",
         "taskCount": 6,
-        "hours": { "dev": 38, "seo": 12, "qa": 8, "content": 0, "total": 58 }
+        "hours": { "seo": 14, "dev": 42, "qa": 8, "devops": 4, "design": 2, "pm": 16, "total": 86 }
       },
       {
         "id": 3,
-        "label": "Site-wide и долгосрочное",
-        "deadline": "1-3 месяца",
-        "taskCount": 3,
-        "hours": { "dev": 64, "seo": 16, "qa": 14, "content": 0, "total": 94 }
-      },
-      {
-        "id": 4,
-        "label": "Полировка",
-        "deadline": "по мере возможности",
-        "taskCount": 2,
-        "hours": { "dev": 8, "seo": 4, "qa": 2, "content": 0, "total": 14 }
+        "label": "Желательные улучшения",
+        "deadline": "1–3 месяца",
+        "taskCount": 5,
+        "hours": { "seo": 18, "dev": 70, "qa": 16, "devops": 12, "design": 8, "pm": 29, "total": 153 }
       }
     ],
-    "reservePercent": 30,
-    "reserveHours": { "dev": 36, "seo": 11, "qa": 8, "content": 0, "total": 55 },
-    "managementHours": 12,
     "totals": {
-      "dev": 158,
-      "seo": 47,
-      "qa": 34,
-      "content": 0,
-      "management": 12,
-      "subtotal": 239,
-      "withReserve": 251
+      "seo": 37, "dev": 126, "qa": 26, "devops": 22, "design": 10, "pm": 52, "total": 273
     },
     "topByRice": [
-      { "title": "Сократите title до 50-60 символов", "stage": 1, "totalHours": 2.5, "riceScore": 320.5 }
+      { "title": "Сократите title до 50-60 символов", "stage": 1, "totalHours": 3, "riceScore": 320.5 }
     ]
   }
 }
