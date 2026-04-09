@@ -1461,6 +1461,50 @@ stage.total = seo + dev + qa + devops + design + pm
 - `managementHours` — PM теперь полноценная роль в каждом этапе
 - `withReserve` — итог теперь честный без отдельного резерва
 
+#### Шаг 13.7а — Обязательная самопроверка перед сохранением (КРИТИЧНО)
+
+Перед записью JSON прогони **арифметическую** самопроверку. Без неё данные в `effortEstimate.stages[]` и `effortEstimate.totals` становятся неконсистентными с `recommendations[]`, и в отчёте появляются противоречия. Это происходило в v1.14.0 (агент сообщал 9/7/1 задач по этапам, а реальное распределение по `phase` было 8/8/1).
+
+**Чек 1 — task counts по этапам**
+
+Для каждого `stage.id ∈ {1, 2, 3}`:
+```
+expectedCount = recommendations.filter(r => phaseToStage(r.phase) === stage.id).length
+assert stage.taskCount === expectedCount
+```
+где `phaseToStage = { urgent: 1, month: 2, strategy: 3 }`.
+
+**Чек 2 — суммы часов по ролям внутри этапа**
+
+Для каждого `stage` и каждой роли `role ∈ {seo, dev, qa, devops, design}`:
+```
+expectedHours = sum(r.estimateHours[role]
+                    for r in recommendations
+                    if phaseToStage(r.phase) === stage.id)
+assert stage.hours[role] === expectedHours
+```
+
+**Чек 3 — PM по этапу**
+
+```
+base = stage.hours.seo + stage.hours.dev + stage.hours.qa + stage.hours.devops + stage.hours.design
+assert stage.hours.pm === ceil(0.23 × base)
+assert stage.hours.total === base + stage.hours.pm
+```
+
+**Чек 4 — totals**
+
+```
+for role in [seo, dev, qa, devops, design, pm, total]:
+    assert effortEstimate.totals[role] === sum(stage.hours[role] for stage in stages)
+```
+
+**Что делать при несовпадении**: **переписать** `effortEstimate.stages[]` и `effortEstimate.totals` так, чтобы все 4 чека прошли. **Не сохраняй JSON, в котором хотя бы одно равенство нарушено.** Источник истины — `recommendations[].estimateHours` и `recommendations[].phase`. Если конфликт между ними и сводкой — доверяй per-rec данным, пересчитывай сводку.
+
+⚠️ Не «прикидывай в уме». Сделай это формально: выпиши массив значений по каждой роли, сложи, сравни с `stage.hours[role]`. LLM-арифметика ненадёжна — выписывание промежуточных сумм даёт корректный результат значительно чаще.
+
+> **Примечание архитектора**. В будущем эти расчёты планируется вынести из SKILL.md в отдельный детерминированный модуль (`estimate.js`), который будет вызываться рендерером перед генерацией HTML. Это устранит дублирование данных в принципе. До тех пор Шаг 13.7а — единственный механизм, гарантирующий целостность сводки. См. раздел «Открытые архитектурные решения» в `CLAUDE.md`.
+
 #### Шаг 13.8 — детализация задач по этапам
 
 Поле `effortEstimate.topByRice[]` **удалено в v1.13.0**. Вместо отдельного «Топ-10 по RICE» отчёт показывает все задачи каждого этапа со временем на каждую — данные берутся напрямую из `recommendations[].estimateHours.total` и `recommendations[].phase`. От тебя требуется только корректно заполнить `phase` (Правило 4) и `estimateHours{}` (Шаги 13.4) для каждой рекомендации.
@@ -1592,7 +1636,7 @@ stage.total = seo + dev + qa + devops + design + pm
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.14.0",
+  "skillVersion": "1.14.1",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
