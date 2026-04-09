@@ -1,5 +1,97 @@
 # Changelog — SEO Audit Skill
 
+## [1.17.0] — 2026-04-10 — UX правки: обложка, Lighthouse, скриншот, H1, page coverage
+
+Минорный релиз: 5 правок UX/визуала + content quality, поднятых пользователем после ручного просмотра отчёта v1.16.4.
+
+### Changed — обложка отчёта
+
+Заголовок «**SEO Audit**» заменён на «**Аудит сайта**». Русское название лучше соответствует целевой аудитории (собственники бизнеса, не SEO-маркетологи).
+
+### Changed — Lighthouse подсекции компактные
+
+Раньше Unused JS / Heavy Resources / Unminified / BFCache отображались как 4 отдельных h3-секции с длинными таблицами «url + размер». На клиентский взгляд это технически перегружено и громоздко.
+
+Теперь — **одна compact-секция «Дополнительные сигналы производительности»** с плитками в стиле Lighthouse-категорий выше:
+
+- **Неиспользуемый JS**: «4 файла · ~322 KB впустую» + краткая подсказка
+- **Тяжёлые ресурсы**: «топ: 1759 KB» + «5 крупных ресурсов. Конвертировать в WebP/AVIF, делить JS на чанки»
+- **Не минифицировано**: «1 файл · 1 CSS · 0 JS»
+- **BFCache**: «5 причин · Back/forward cache отключён»
+
+Каждая плитка ~180px, в auto-fit grid. URL отдельных файлов больше не показываются — их можно посмотреть в исходном `lighthouse-*.json` для отладки. Клиенту достаточно агрегатов + руководства к действию.
+
+### Changed — мобильный скриншот без upscaling
+
+CSS `.screenshot-frame img { width: 100% }` принудительно растягивал маленький мобильный скриншот (412×823 viewport, ~14 KB JPG из Lighthouse final-screenshot) на полную ширину колонки → пикселизация и blur.
+
+Фикс:
+- `width: 100%` → `max-width: 100%` — не upscale-ить выше натурального размера
+- `.screenshot-frame.mobile img { max-width: min(100%, 412px); }` — мобильный скриншот не больше своего натурального viewport-а
+- `margin: 0 auto` — центрирование когда меньше колонки
+- HTML: добавлен класс `mobile` к контейнеру мобильного скриншота
+
+Десктопный скриншот не затронут — он крупнее (1350×940) и `max-width: 100%` для него работает корректно.
+
+### Added — Page coverage instruction + lint (Rule 4 расширение)
+
+На v1.16.4 audit `pageTypeStats` показал:
+```
+totalUrls: 9, totalTypes: 5, analyzedTypes: 3, skippedTypes: 0
+```
+Агент проанализировал только **3 из 5** уникальных типов страниц (пропустил /kapli/ и /where-to-buy/), хотя лимит 20. Плюс `skippedTypes: 0` — внутренне противоречиво (5 − 3 = 2, не 0).
+
+**SKILL.md**: добавлен явный warning после описания page-type collector script:
+> ⚠️ **КРИТИЧНО — анализируй ВСЕ типы из этого массива** (до лимита 20). Если сработка дала 5 типов — глубокий анализ должен охватить все 5, не 3 и не «выборочно». […] Лучше дать менее детальный анализ всех типов, чем подробный анализ части.
+
+С самопроверкой:
+```
+assert pages.length === pageTypeStats.analyzedTypes
+assert pageTypeStats.analyzedTypes === min(20, pageTypeStats.totalTypes)
+assert pageTypeStats.skippedTypes === pageTypeStats.totalTypes - pageTypeStats.analyzedTypes
+```
+
+**generate-report.js**: новый блок в `lintDataQuality()`:
+- `pages.length < min(20, totalTypes)` → флаг
+- `skippedTypes !== totalTypes − analyzedTypes` → флаг
+
+На текущем JSON ловит: «pages[].length = 3, но pageTypeStats.totalTypes = 5 (лимит 20). Должно быть проанализировано 5 типов» + «skippedTypes = 0, но totalTypes − analyzedTypes = 2».
+
+### Changed — H1 prominent standalone row над метриками
+
+На v1.16.4 пользователь визуально путал H1 с Title в 2-колоночной сетке метрик: Title с «77 симв. (длинно)» рядом с H1 в одной горизонтальной строке.
+
+H1 переехал из 2-колоночной сетки в **отдельную полно-ширинную строку над метриками**:
+- Жёлтый/красный левый border 4px
+- Цветной фон (зелёный или красный)
+- Лейбл «Заголовок H1» крупный, в caps
+- Значение полной длины (truncate 60 символов)
+
+Невозможно спутать с другими полями — H1 теперь единственный видимый «выделенный» элемент карточки страницы. Главная страница maxilac → красная плашка с «нет», для /for-adult/ и /sashe/ → зелёная плашка с актуальным H1 текстом.
+
+В 2-колоночной сетке остаются: Title, Description, Canonical, Schema.org, OG, Хлебные крошки, Изображения. H1 удалён из неё.
+
+### Verified
+
+Перерендерил maxilac v1.16.4 на v1.17.0:
+- ✅ Cover: «Аудит сайта»
+- ✅ Lighthouse compact section с плитками
+- ✅ Mobile screenshot имеет class `mobile` + CSS rule `max-width: min(100%, 412px)`
+- ✅ Page coverage lint поймал 3/5 = 2 пропущенных типа + неконсистентный skippedTypes
+- ✅ H1 row prominent: «Заголовок H1: нет» / «Заголовок H1: Cинбиотик МАКСИЛАК®...» — цветной фон, левый border. Из 2-колоночной сетки H1 удалён (0 occurrences).
+
+### Why MINOR
+
+По таблице из CLAUDE.md: «новый раздел отчёта» (compact Lighthouse section, prominent H1 row) + «новая проверка» (page coverage lint) → MINOR. Все изменения визуальные/содержательные, схема JSON не менялась.
+
+### Files
+
+- `generate-report.js` — cover text, compact Lighthouse, mobile CSS, H1 row, page coverage lint. `SKILL_VERSION = '1.17.0'`.
+- `SKILL.md` — Page coverage warning + самопроверка. `skillVersion: 1.17.0`.
+- `CLAUDE.md` — версия `1.17.0`.
+
+---
+
 ## [1.16.5] — 2026-04-10 — `cleanCmsInfo` нормализация запятых и пробелов
 
 Патч-релиз: на v1.16.4 audit (`maxilac.ru-2026-04-10-0138`) `cmsInfo` пришёл в новой форме:

@@ -383,6 +383,16 @@ console.log(JSON.stringify({
 
 **Результат** — массив до 20 объектов, каждый с `pattern`, `matchedCount`, `sampleUrl`. Сохрани этот результат — он будет использован в Фазе 2 (шаги 2.4 и 3) как `pageTypes[]` в JSON-схеме.
 
+⚠️ **КРИТИЧНО — анализируй ВСЕ типы из этого массива** (до лимита 20). Если сработка дала 5 типов — глубокий анализ должен охватить все 5, не 3 и не «выборочно». На отчёте maxilac.ru v1.16.4 агент проанализировал только 3 из 5 типов (`pageTypes` имел /, /for-adult/, /sashe/, /kapli/, /where-to-buy/, а `pages[]` содержал только первые 3) — клиент не получил данные по двум разделам сайта.
+
+**Самопроверка перед сохранением `pages[]`**:
+```
+assert pages.length === pageTypeStats.analyzedTypes
+assert pageTypeStats.analyzedTypes === min(20, pageTypeStats.totalTypes)
+assert pageTypeStats.skippedTypes === pageTypeStats.totalTypes - pageTypeStats.analyzedTypes
+```
+Если пропустил тип ради экономии токенов — это не «оптимизация», это **неполный отчёт**. Лучше дать менее детальный анализ всех типов, чем подробный анализ части.
+
 **Если sitemap.xml недоступен** (404):
 - Используй внутренние ссылки с главной (собранные в Фазе 2.1 как `internalLinks`/`navMenuItems`)
 - Применяй ту же нормализацию
@@ -1791,7 +1801,7 @@ for path in client_facing_fields:
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.16.5",
+  "skillVersion": "1.17.0",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,

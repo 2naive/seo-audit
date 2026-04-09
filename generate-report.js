@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.16.5';
+const SKILL_VERSION = '1.17.0';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -247,6 +247,21 @@ function lintDataQuality(data) {
     }
   }
 
+  // Page coverage: agent должен анализировать ВСЕ типы из pageTypeStats до лимита 20.
+  // На v1.16.4 audit агент проанализировал 3 из 5 типов (/kapli/ и /where-to-buy/ скипнул).
+  const pts = data.pageTypeStats || {};
+  const pagesCount = (data.pages || []).length;
+  const expected = Math.min(20, pts.totalTypes || 0);
+  if (pts.totalTypes && pagesCount < expected) {
+    issues.push(`Page coverage: pages[].length = ${pagesCount}, но pageTypeStats.totalTypes = ${pts.totalTypes} (лимит 20). Должно быть проанализировано ${expected} типов.`);
+  }
+  if (pts.totalTypes && typeof pts.skippedTypes === 'number') {
+    const expectedSkipped = Math.max(0, (pts.totalTypes || 0) - (pts.analyzedTypes || 0));
+    if (pts.skippedTypes !== expectedSkipped) {
+      issues.push(`Page coverage: pageTypeStats.skippedTypes = ${pts.skippedTypes}, но totalTypes − analyzedTypes = ${expectedSkipped}.`);
+    }
+  }
+
   // Rule 4: r.phase у агента vs derived из priority+difficulty
   // Renderer всё равно использует derived (с v1.16.3), но lint показывает оператору
   // когда агент пытается переопределить — это сигнал что инструкции Rule 4 не дошли.
@@ -392,7 +407,7 @@ function buildHTML(data) {
   const coverHtml = `
   <section class="cover">
     <div class="cover-content">
-      <div class="cover-brand">SEO Audit</div>
+      <div class="cover-brand">Аудит сайта</div>
       <div class="cover-domain">${esc(url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</div>
       <div class="cover-date">${esc(dateOnly)}</div>
       <div class="cover-grade-wrap">
@@ -578,28 +593,57 @@ function buildHTML(data) {
       <div style="font-size:12px;color:#475569">
         ${imgOpts.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code> ${i.savings ? `<span style="color:#dc2626;font-weight:600">— экономия ${esc(i.savings)}</span>` : ''}</div>`).join('')}
       </div>` : ''}
-      ${unusedJs.length ? `
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">Неиспользуемый JavaScript</h3>
-      <div style="font-size:12px;color:#475569">
-        ${unusedJs.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code> <span style="color:#94a3b8">${esc(i.total||'')}</span>${i.wasted ? ` <span style="color:#dc2626;font-weight:600">— впустую ${esc(i.wasted)}${i.wastedPercent ? ` (${esc(i.wastedPercent)})` : ''}</span>` : ''}</div>`).join('')}
-      </div>
-      <p style="font-size:11px;color:var(--muted);margin-top:6px">Обычно главная причина высокого TBT и долгого TTI — крупные сторонние и шаблонные JS-бандлы, не используемые на этой странице. Решения: code-splitting, defer/async, удаление неиспользуемых модулей.</p>` : ''}
-      ${heavy.length ? `
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">Самые тяжёлые ресурсы</h3>
-      <div style="font-size:12px;color:#475569">
-        ${heavy.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code>${i.total ? ` <span style="color:#dc2626;font-weight:600">— ${esc(i.total)}</span>` : ''}</div>`).join('')}
-      </div>
-      <p style="font-size:11px;color:var(--muted);margin-top:6px">Топ-5 ресурсов по объёму. Изображения &gt; 200 KB следует переводить в WebP/AVIF и сжимать; крупные JS — делить на чанки.</p>` : ''}
-      ${(unminCss.length || unminJs.length) ? `
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">Не минифицировано</h3>
-      <div style="font-size:12px;color:#475569">
-        ${unminCss.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code>${i.wasted ? ` <span style="color:#dc2626;font-weight:600">— ${esc(i.wasted)}</span>` : ''} <span style="color:#94a3b8">CSS</span></div>`).join('')}
-        ${unminJs.map(i => `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9"><code style="background:#f8fafc;padding:2px 6px;border-radius:3px">${esc(i.url)}</code>${i.wasted ? ` <span style="color:#dc2626;font-weight:600">— ${esc(i.wasted)}</span>` : ''} <span style="color:#94a3b8">JS</span></div>`).join('')}
-      </div>` : ''}
-      ${bfFails.length ? `
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 8px">BFCache не работает</h3>
-      <div style="font-size:12px;color:#475569">${bfFails.map(f => `<div>• ${esc(f)}</div>`).join('')}</div>
-      <p style="font-size:11px;color:var(--muted);margin-top:6px">BFCache (back/forward cache) ускоряет навигацию назад/вперёд до мгновенной. Без него каждый возврат — полная перезагрузка страницы. Типичные причины: <code>Cache-Control: no-store</code>, <code>unload</code>-обработчики.</p>` : ''}
+      ${(unusedJs.length || heavy.length || unminCss.length || unminJs.length || bfFails.length) ? (() => {
+        // Сжатые плитки в стиле Lighthouse-категорий выше — компактные «карточки»
+        // вместо длинных таблиц с url. Подробности доступны в исходном lighthouse-*.json.
+        const sumKB = arr => {
+          let total = 0;
+          arr.forEach(i => {
+            const m = String(i.wasted || i.total || '').match(/(\d+)/);
+            if (m) total += parseInt(m[1], 10);
+          });
+          return total;
+        };
+        const tile = (label, value, hint, color) => `
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;text-align:left">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">${label}</div>
+          <div style="font-size:18px;font-weight:800;color:${color}">${value}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">${hint}</div>
+        </div>`;
+        const tiles = [];
+        if (unusedJs.length) {
+          const wastedKb = sumKB(unusedJs);
+          tiles.push(tile('Неиспользуемый JS',
+            `${unusedJs.length} файл${unusedJs.length === 1 ? '' : unusedJs.length < 5 ? 'а' : 'ов'} · ~${wastedKb} KB впустую`,
+            'Главная причина TBT и TTI. Решения: code-splitting, defer/async, удаление модулей',
+            '#dc2626'));
+        }
+        if (heavy.length) {
+          const top = heavy[0] || {};
+          tiles.push(tile('Тяжёлые ресурсы',
+            `топ: ${esc(top.total || '?')}`,
+            `${heavy.length} крупн${heavy.length === 1 ? 'ый' : 'ых'} ресурс${heavy.length === 1 ? '' : heavy.length < 5 ? 'а' : 'ов'}. Конвертировать в WebP/AVIF, делить JS на чанки`,
+            '#dc2626'));
+        }
+        if (unminCss.length || unminJs.length) {
+          const total = unminCss.length + unminJs.length;
+          tiles.push(tile('Не минифицировано',
+            `${total} файл${total === 1 ? '' : total < 5 ? 'а' : 'ов'}`,
+            `${unminCss.length} CSS · ${unminJs.length} JS. Включить минификацию в сборке или CDN`,
+            '#f59e0b'));
+        }
+        if (bfFails.length) {
+          tiles.push(tile('BFCache',
+            `${bfFails.length} причин${bfFails.length === 1 ? 'а' : bfFails.length < 5 ? 'ы' : ''}`,
+            'Back/forward cache отключён. Навигация назад — полная перезагрузка. Типично: Cache-Control: no-store, unload-обработчики',
+            '#f59e0b'));
+        }
+        return `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:16px 0 10px">Дополнительные сигналы производительности</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        ${tiles.join('')}
+      </div>`;
+      })() : ''}
     </div>`;
   })() : '';
 
@@ -1071,6 +1115,17 @@ function buildHTML(data) {
     const schemaOk    = !!(m.schemaTypes && m.schemaTypes.length);
     const schemaVal   = schemaOk ? m.schemaTypes.join(', ') : 'нет';
 
+    // H1 — отдельная prominent-строка над метриками: чтобы её нельзя было визуально
+    // спутать с Title в 2-колоночной сетке (на v1.16.4 пользователь отметил
+    // путаницу — Title 77 симв. рядом с H1 в одной горизонтальной строке).
+    const h1RowColor = h1Ok ? '#16a34a' : '#dc2626';
+    const h1RowBg = h1Ok ? '#f0fdf4' : '#fef2f2';
+    const h1Row = `
+      <div style="margin:8px 0 10px;padding:10px 12px;border-radius:6px;background:${h1RowBg};border-left:4px solid ${h1RowColor};display:flex;align-items:baseline;gap:10px">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${h1RowColor};flex-shrink:0">Заголовок H1</span>
+        <span style="font-size:13px;color:#1e293b;font-weight:500">${esc(h1Display)}</span>
+      </div>`;
+
     return `
     <div class="page-card">
       <div class="page-card-header">
@@ -1082,10 +1137,10 @@ function buildHTML(data) {
         <span class="page-type-pattern">Pattern: <code>${esc(pt.pattern)}</code></span>
         ${pt.matchedCount ? `<span class="page-type-count">${pt.matchedCount} ${pt.matchedCount === 1 ? 'страница этого типа' : pt.matchedCount < 5 ? 'страницы этого типа' : 'страниц этого типа'}</span>` : ''}
       </div>` : ''}
+      ${h1Row}
       <div class="page-metrics">
         ${metricRow('Title', titleVal, m.titleLen == null ? false : titleOk)}
         ${metricRow('Description', descVal, m.metaDescLen == null ? false : descOk)}
-        ${metricRow('H1', h1Display, h1Ok)}
         ${metricRow('Canonical', m.canonical ? '✓' : 'нет', !!m.canonical)}
         ${metricRow('Schema.org', schemaVal, schemaOk)}
         ${metricRow('Open Graph', m.hasOpenGraph ? '✓' : 'нет', !!m.hasOpenGraph)}
@@ -1191,7 +1246,7 @@ function buildHTML(data) {
       </div>` : ''}
       ${mobileSrc ? `<div>
         <div class="screenshot-label">Мобильный · viewport 412 × 823</div>
-        <div class="screenshot-frame"><img src="${mobileSrc}" alt="Mobile screenshot"></div>
+        <div class="screenshot-frame mobile"><img src="${mobileSrc}" alt="Mobile screenshot"></div>
       </div>` : ''}
     </div>
   </div>` : '';
@@ -1397,9 +1452,16 @@ function buildHTML(data) {
   }
   .screenshot-frame img {
     display: block;
-    width: 100%;
+    max-width: 100%;
     height: auto;
-    /* Если картинка выше 600px, верхние 600px видны через overflow:hidden родителя */
+    margin: 0 auto;
+    /* image-rendering для PDF-рендера: оставляем браузеру решать, не upscale */
+    image-rendering: auto;
+  }
+  .screenshot-frame.mobile img {
+    /* Мобильный скриншот из Lighthouse — небольшой (412×823 viewport, обычно <500px ширина).
+       max-width: 100% не даст ему растянуться больше натурального размера → нет пикселизации. */
+    max-width: min(100%, 412px);
   }
   /* Градиентная подсветка снизу — намёк что скриншот обрезан */
   .screenshot-frame::after {
