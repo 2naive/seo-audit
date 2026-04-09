@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.16.2';
+const SKILL_VERSION = '1.16.3';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -221,6 +221,22 @@ function lintDataQuality(data) {
     }
   }
 
+  // Rule 4: r.phase у агента vs derived из priority+difficulty
+  // Renderer всё равно использует derived (с v1.16.3), но lint показывает оператору
+  // когда агент пытается переопределить — это сигнал что инструкции Rule 4 не дошли.
+  const derivePhase = r => {
+    if (r.priority === 'high' && r.difficulty === 'low') return 'urgent';
+    if (r.priority === 'high' || r.priority === 'medium') return 'month';
+    return 'strategy';
+  };
+  const phaseMismatch = (data.recommendations || [])
+    .map((r, i) => ({ i, r, derived: derivePhase(r) }))
+    .filter(({ r, derived }) => r.phase && r.phase !== derived);
+  if (phaseMismatch.length) {
+    issues.push(`Rule 4: ${phaseMismatch.length} рекомендаций с phase, не совпадающим с derived из priority+difficulty (renderer использует derived):`);
+    phaseMismatch.slice(0, 5).forEach(({ i, r, derived }) => issues.push(`   • recommendations[${i}] (${r.priority}/${r.difficulty}): agent=${r.phase}, derived=${derived} — «${r.title.slice(0, 50)}…»`));
+  }
+
   // Мета-комментарии о процессе проверки в value-полях (Rule 0: tone)
   // На v1.15.2 в siteData.http2.version и technical[].value утекли фразы вроде
   // "не удалось однозначно определить", "предположительно", "curl не поддерживает".
@@ -318,18 +334,25 @@ function buildHTML(data) {
   const dateOnly = (date || '').slice(0, 10);
   const grade = executiveSummary?.grade || (parseFloat(totalScore) >= 9 ? 'A' : parseFloat(totalScore) >= 7.5 ? 'B' : parseFloat(totalScore) >= 6 ? 'C' : parseFloat(totalScore) >= 4 ? 'D' : 'F');
 
-  // Phase grouping for Roadmap (auto-fallback if phase missing)
+  // Phase grouping for Roadmap (Rule 4) — ВСЕГДА derived из priority+difficulty,
+  // r.phase от агента игнорируется. На v1.15.2 audit агент 2/17 раз поставил
+  // phase=urgent для high/medium, что нарушает Rule 4 (high/medium → month).
+  // Renderer теперь строго следует Rule 4 — single source of truth.
   const computePhase = r => {
-    if (r.phase) return r.phase;
     if (r.priority === 'high' && r.difficulty === 'low') return 'urgent';
     if (r.priority === 'high') return 'month';
     if (r.priority === 'medium') return 'month';
     return 'strategy';
   };
-  const sortPhase = arr => arr.sort((a,b) => {
+  // Сортировка внутри фазы (Rule 4): priority desc → difficulty asc → estimateHours.total asc.
+  // На v1.15.2 порядок задавал агент и регулярно ошибался — теперь renderer сам.
+  const sortPhase = arr => arr.sort((a, b) => {
     const pri = { high: 0, medium: 1, low: 2 };
     const dif = { low: 0, medium: 1, high: 2 };
-    return (pri[a.priority]||3) - (pri[b.priority]||3) || (dif[a.difficulty]||3) - (dif[b.difficulty]||3);
+    const hours = r => (r.estimateHours && typeof r.estimateHours.total === 'number') ? r.estimateHours.total : 999;
+    return (pri[a.priority] ?? 3) - (pri[b.priority] ?? 3)
+        || (dif[a.difficulty] ?? 3) - (dif[b.difficulty] ?? 3)
+        || hours(a) - hours(b);
   });
   const urgentRecs   = sortPhase(recs.filter(r => computePhase(r) === 'urgent'));
   const monthRecs    = sortPhase(recs.filter(r => computePhase(r) === 'month'));

@@ -1,5 +1,68 @@
 # Changelog — SEO Audit Skill
 
+## [1.16.3] — 2026-04-10 — Phase + sort внутри фазы всегда derived (Rule 4)
+
+Патч-релиз: на v1.15.2 audit агент **2 раза** поставил `phase: "urgent"` для рекомендаций с `priority=high, difficulty=medium`, что нарушает Правило 4 (high/medium → month). Плюс сортировка внутри фазы не следовала Rule 4 (`priority desc → difficulty asc → estimateHours.total asc`) — задача с `total=4` шла раньше задачи с `total=3` в той же категории.
+
+Renderer **с самого начала** имел fallback `computePhase(r)`, но он использовал `r.phase` если оно было задано — и проигрывал агенту в случае конфликта. Теперь — игнорирует `r.phase` всегда, derives строго из `priority + difficulty`.
+
+### Changed — `computePhase()` всегда derives, игнорирует `r.phase`
+
+```js
+const computePhase = r => {
+  if (r.priority === 'high' && r.difficulty === 'low') return 'urgent';
+  if (r.priority === 'high') return 'month';
+  if (r.priority === 'medium') return 'month';
+  return 'strategy';
+};
+```
+
+Раньше первая строка была `if (r.phase) return r.phase;` — это позволяло агенту переопределить логику. Теперь эта строка удалена.
+
+Эффект на v1.15.2 audit:
+- Phase counts: было `9 / 6 / 2` (агентское), стало `7 / 8 / 2` (derived)
+- 2 рекомендации (битые изображения, оптимизация изображений) переехали из «Срочно — 1–2 недели» в «В этот месяц» — что соответствует их сложности (medium, не low)
+
+### Changed — `sortPhase()` теперь сортирует по 3 ключам
+
+Было: `priority desc → difficulty asc` (без часов).
+Стало: `priority desc → difficulty asc → estimateHours.total asc`.
+
+Эффект на v1.15.2 urgent phase:
+- Было: sitemap (4 ч), H1 (3 ч), title (4 ч), Schema (8 ч), Метрика (3 ч), …
+- Стало: H1 (3 ч), Метрика (3 ч), GTM (3 ч), sitemap (4 ч), title (4 ч), canonical (4 ч), Schema (8 ч)
+
+Самые быстрые задачи теперь в начале списка — клиент видит прогресс, не упирается в 8-часовую Schema.org как первый пункт.
+
+### Added — Rule 4 lint diagnostic
+
+В `lintDataQuality()` добавлен блок: для каждой `recommendations[i]` сравнивает `r.phase` (если задано) с derived из `priority+difficulty`. При расхождении — флаг с указанием обоих значений.
+
+На v1.15.2 audit ловит 2 mismatch:
+```
+Rule 4: 2 рекомендаций с phase, не совпадающим с derived:
+   • recommendations[5] (high/medium): agent=urgent, derived=month — «Исправьте битые изображения…»
+   • recommendations[6] (high/medium): agent=urgent, derived=month — «Оптимизируйте главные изображения…»
+```
+
+Lint информационный — renderer всё равно использует derived, но оператор видит, что инструкции Правила 4 не доходят до агента. Если расхождения сохраняются на следующих audit-ах — нужно усилить SKILL.md.
+
+### Verified
+
+Перерендерил maxilac v1.15.2 на v1.16.3:
+- ✅ План действий: 7 / 8 / 2 (было 9 / 6 / 2)
+- ✅ Урgent phase сортировка: H1 → Метрика → GTM → sitemap → title → canonical → Schema (по `total asc`)
+- ✅ Lint Rule 4: 2 mismatch найдены и показаны оператору
+- ✅ Effort estimate stages count: 7 / 8 / 2 (renderer пересчитывает по derived phase)
+
+### Files
+
+- `generate-report.js` — `computePhase()` теперь без `r.phase` fallback. `sortPhase()` добавлен 3-й ключ `estimateHours.total asc`. `lintDataQuality()` получил блок Rule 4 mismatch. `SKILL_VERSION = '1.16.3'`.
+- `SKILL.md` — `skillVersion: 1.16.3`. Содержание правил не менялось — Правило 4 уже было правильным, теперь оно просто структурно энфорсится.
+- `CLAUDE.md` — версия `1.16.3`.
+
+---
+
 ## [1.16.2] — 2026-04-10 — Lint для CMS-специфики (Rule 1) и meta-leak в value полях
 
 Патч-релиз: ещё два класса дефектов на отчёте maxilac.ru v1.15.2.
