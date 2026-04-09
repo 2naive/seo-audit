@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.16.4';
+const SKILL_VERSION = '1.16.5';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -84,16 +84,25 @@ function difficultyBadge(d) {
 }
 
 // Очистка cmsInfo от технических деталей в скобках для клиентского отображения.
-// Агент часто пишет '1C-Bitrix (X-Powered-CMS: Bitrix Site Manager, nginx)' —
-// скобочная часть это HTTP-заголовок, утечка технической детали. Клиенту нужно
-// просто '1C-Bitrix' (или '1C-Bitrix · nginx' если в скобках есть веб-сервер).
+// Агент пишет варианты типа:
+//   '1C-Bitrix (X-Powered-CMS: Bitrix Site Manager, nginx)'
+//   '1C-Битрикс (X-Powered-CMS: Bitrix Site Manager), nginx'
+//   'WordPress (5.8.1)'
+// Скобочная часть — HTTP-заголовок или версия, утечка технической детали.
+// Клиенту нужно: 'CMS · server' через стандартный разделитель.
 function cleanCmsInfo(s) {
   if (!s) return s;
   let str = String(s).trim();
-  // Захватим веб-сервер из скобок, если есть (nginx/apache/litespeed/iis)
+  // Захватим веб-сервер (nginx/apache/litespeed/iis) откуда угодно — внутри или снаружи скобок
   const serverMatch = str.match(/\b(nginx|apache|litespeed|caddy|iis)\b/i);
   // Удалим всю скобочную часть с техническим содержимым
-  str = str.replace(/\s*\([^)]*\)\s*/g, '').trim();
+  str = str.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  // Нормализация остатков пунктуации и пробелов: «1C-Битрикс, nginx», «1C-Битрикс  nginx»
+  str = str
+    .replace(/^[\s,;·]+|[\s,;·]+$/g, '') // обрежем пунктуацию по краям
+    .replace(/\s*[,;]\s*/g, ' · ')        // запятые/точки с запятой → разделитель
+    .replace(/\s+/g, ' ')                  // лишние пробелы
+    .replace(/\s*·\s*·\s*/g, ' · ');       // двойные разделители
   if (serverMatch && !new RegExp('\\b' + serverMatch[1] + '\\b', 'i').test(str)) {
     str = `${str} · ${serverMatch[1].toLowerCase()}`;
   }

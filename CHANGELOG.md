@@ -1,5 +1,64 @@
 # Changelog — SEO Audit Skill
 
+## [1.16.5] — 2026-04-10 — `cleanCmsInfo` нормализация запятых и пробелов
+
+Патч-релиз: на v1.16.4 audit (`maxilac.ru-2026-04-10-0138`) `cmsInfo` пришёл в новой форме:
+```
+"1C-Битрикс (X-Powered-CMS: Bitrix Site Manager), nginx"
+```
+Закрывающая скобка стоит **перед** `, nginx`, не охватывая веб-сервер. Мой `cleanCmsInfo()` из v1.16.4 удалял скобочную часть `(X-Powered-CMS: Bitrix Site Manager)`, оставляя `"1C-Битрикс , nginx"` с лишней запятой и двойными пробелами. Клиент видел «**1C-Битрикс, nginx**» — сирота-запятая ломает читабельность.
+
+### Fixed — `cleanCmsInfo` теперь нормализует пунктуацию
+
+Цепочка нормализации после удаления скобок:
+
+```js
+str
+  .replace(/^[\s,;·]+|[\s,;·]+$/g, '')   // обрежем пунктуацию по краям
+  .replace(/\s*[,;]\s*/g, ' · ')          // запятые/точки с запятой → стандартный разделитель
+  .replace(/\s+/g, ' ')                    // лишние пробелы
+  .replace(/\s*·\s*·\s*/g, ' · ')          // двойные разделители
+```
+
+Регекс для удаления скобочной части тоже подправлен: `replace('', ' ')` вместо `''` — теперь оставляет пробел вместо склейки слов.
+
+### Verified
+
+| Вход | v1.16.4 (баг) | v1.16.5 (фикс) |
+|---|---|---|
+| `1C-Bitrix (X-Powered-CMS: ..., nginx)` | `1C-Bitrix · nginx` ✓ | `1C-Bitrix · nginx` ✓ |
+| `1C-Битрикс (X-Powered-CMS: ...), nginx` | `1C-Битрикс, nginx` ❌ | **`1C-Битрикс · nginx`** ✓ |
+| `WordPress (5.8.1)` | `WordPress` ✓ | `WordPress` ✓ |
+| `Tilda` | `Tilda` ✓ | `Tilda` ✓ |
+| `1C-Bitrix · nginx` (already clean) | unchanged ✓ | unchanged ✓ |
+
+### Прочие наблюдения с v1.16.4 audit (для контекста)
+
+Перерендерил `report-data-maxilac.ru-2026-04-10-0138.json` и проверил против всех ранее закрытых классов багов:
+
+| Правило | Результат |
+|---|---|
+| Rule 14 (RU-сайт, 152-ФЗ leak) | ✅ 0 нарушений |
+| Rule 16 (slang) | ✅ 0 |
+| Rule 4 (phase derivation) | ✅ 0 mismatches (агент пишет phase согласно derived) |
+| Step 13.7а (stages = phase grouping) | ✅ 8/8/1 совпадает |
+| Rule 8 (risks ≤ 5) | ✅ ровно 5 |
+| Rule 7 (strengths ≤ 5) | ✅ ровно 5 |
+| Rule 15 (firstParagraphWords contract) | ✅ все 3 страницы — number (32, 26, 28), 0 nulls |
+| Rule 1 effortHours removed | ✅ 0/17 рекомендаций имеют поле |
+| Lighthouse new fields | ✅ 4 unused JS, 5 heavy, 1 unmin CSS, 5 bf-cache |
+| Tone meta-leak | ✅ 0 |
+
+Остались только Rule 1 (Bitrix-маркеры в fix — 7/17) и Rule 2 (ROI numbers в impact — 4/17) — оба видны оператору через lint, но требуют LLM-судения, структурно не закрываемы без Variant D.
+
+### Files
+
+- `generate-report.js` — `cleanCmsInfo()` обновлён цепочкой нормализации. `SKILL_VERSION = '1.16.5'`.
+- `SKILL.md` — `skillVersion: 1.16.5`.
+- `CLAUDE.md` — версия `1.16.5`.
+
+---
+
 ## [1.16.4] — 2026-04-10 — Очистка `cmsInfo` от технических HTTP-заголовков
 
 Патч-релиз: на v1.15.2 audit `cmsInfo` содержал техническую утечку, видимую клиенту в блоке Executive Summary:
