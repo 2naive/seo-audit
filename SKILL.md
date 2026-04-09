@@ -1007,6 +1007,43 @@ JSON.stringify((() => {
 
 **Важно по `screenshotPaths`**: используй абсолютные пути к реально сохранённым PNG-файлам. Если файл не был создан (базовый режим без Chrome), укажи `null`. generate-report.js встроит изображения в HTML/PDF через base64.
 
+### ⚠️ Обязательные поля `pages[].metrics` — НЕ ПРОПУСКАТЬ
+
+Когда сохраняешь результат JS-сборщика из шага 2.1 в `pages[i].metrics`, **обязательно** перенеси ВСЕ собранные поля в JSON, не теряй ни одно. Особенно часто пропускаются (контрольный список):
+
+- ✅ `badAnchors` — `{ count, examples[] }` (см. шаг 2.1, поле обязательное даже если count=0)
+- ✅ `bodyTextLen` — длина текста в символах (нужна для thin content в Правиле 11)
+- ✅ `domSize`, `domDepth` — DOM метрики
+- ✅ `semanticTags` — счётчики `<article>`, `<section>`, и т.д.
+- ✅ `aeoReadiness` — `{ firstParagraphWords, hasFaqSection }`
+- ✅ `formsHttps`, `protocolRelativeCount`, `hasCookieConsent`, `hasFavicon`
+- ✅ `imgsTotal`, `imgsNoAlt`, `imgsBroken`
+- ✅ `h2Count`, `h3Count`
+- ✅ `first100WordsHasH1Keyword`
+
+**Правило**: если JS-сборщик 2.1 вернул поле — оно ДОЛЖНО попасть в JSON, даже если значение `null` / `0` / `false` / пустой массив. Без этого Правила 11 не сработают (агент не увидит проблем).
+
+### ⚠️ Правило 11 — обход всех страниц для thin content и badAnchors
+
+Перед финализацией `recommendations[]` пройдись по `pages[].metrics` для **каждой** страницы и проверь:
+
+```
+for each page in pages:
+    words = (page.metrics.bodyTextLen or 0) / 5  # ≈ слов
+    if words < 300 and page.template != "home":
+        → создать warning рекомендацию "Расширить контент на {page.url}"
+        → impact: "Тонкий контент (~{words} слов) — поисковики снижают такие страницы в индексе как малополезные. Google: thin content без уникальной ценности → возможна деиндексация"
+        → affectedUrls: [page.url]
+
+    if page.metrics.badAnchors and page.metrics.badAnchors.count > 0:
+        → создать warning рекомендацию "Заменить плохие анкоры на {page.url}"
+        → description: перечислить конкретные badAnchors.examples
+        → impact: "Анкоры не передают семантический контекст ссылкам. Google не понимает релевантность связи между страницами"
+        → affectedUrls: [page.url]
+```
+
+Это **обязательная финальная проверка**, не пропускать.
+
 ## Правила формирования рекомендаций (обязательные)
 
 Эти правила определяют клиентское качество отчёта. Соблюдай каждое.
@@ -1218,7 +1255,7 @@ JSON.stringify((() => {
   "url": "$ARGUMENTS",
   "date": "YYYY-MM-DD HH:MM",
   "mode": "full | basic",
-  "skillVersion": "1.9.2",
+  "skillVersion": "1.9.3",
   "summary": {
     "summary": "2-3 предложения об общем состоянии SEO",
     "pagesAnalyzed": N,
