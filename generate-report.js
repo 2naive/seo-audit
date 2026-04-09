@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.16.3';
+const SKILL_VERSION = '1.16.4';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -81,6 +81,23 @@ function difficultyBadge(d) {
   };
   const [bg, color, label] = map[d] ?? map.medium;
   return `<span style="background:${bg};color:${color};padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700">Сложность: ${label}</span>`;
+}
+
+// Очистка cmsInfo от технических деталей в скобках для клиентского отображения.
+// Агент часто пишет '1C-Bitrix (X-Powered-CMS: Bitrix Site Manager, nginx)' —
+// скобочная часть это HTTP-заголовок, утечка технической детали. Клиенту нужно
+// просто '1C-Bitrix' (или '1C-Bitrix · nginx' если в скобках есть веб-сервер).
+function cleanCmsInfo(s) {
+  if (!s) return s;
+  let str = String(s).trim();
+  // Захватим веб-сервер из скобок, если есть (nginx/apache/litespeed/iis)
+  const serverMatch = str.match(/\b(nginx|apache|litespeed|caddy|iis)\b/i);
+  // Удалим всю скобочную часть с техническим содержимым
+  str = str.replace(/\s*\([^)]*\)\s*/g, '').trim();
+  if (serverMatch && !new RegExp('\\b' + serverMatch[1] + '\\b', 'i').test(str)) {
+    str = `${str} · ${serverMatch[1].toLowerCase()}`;
+  }
+  return str;
 }
 
 // Склонение «час / часа / часов»
@@ -433,7 +450,7 @@ function buildHTML(data) {
       <div class="exec-headline-block">
         <h2 style="margin-bottom:8px">Главное</h2>
         <p style="font-size:15px;line-height:1.6;color:#1e293b">${esc(executiveSummary?.headline || stats.summary || '')}</p>
-        ${cmsInfo ? `<div class="exec-meta">CMS / сервер: <strong>${esc(cmsInfo)}</strong></div>` : ''}
+        ${cmsInfo ? `<div class="exec-meta">CMS / сервер: <strong>${esc(cleanCmsInfo(cmsInfo))}</strong></div>` : ''}
       </div>
     </div>
     <div class="strengths-risks">

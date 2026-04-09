@@ -1,5 +1,56 @@
 # Changelog — SEO Audit Skill
 
+## [1.16.4] — 2026-04-10 — Очистка `cmsInfo` от технических HTTP-заголовков
+
+Патч-релиз: на v1.15.2 audit `cmsInfo` содержал техническую утечку, видимую клиенту в блоке Executive Summary:
+
+> CMS / сервер: **1C-Bitrix (X-Powered-CMS: Bitrix Site Manager, nginx)**
+
+`X-Powered-CMS:` — название HTTP-заголовка, по которому агент детектил CMS. Это служебная информация для отладки, не для клиентского отчёта. Аналогично HTTP/2 meta-leak (v1.16.2), но в другом поле.
+
+### Added — `cleanCmsInfo()` helper в renderer
+
+Чистит cmsInfo от скобочных технических деталей, сохраняя название веб-сервера если оно там было:
+
+```js
+function cleanCmsInfo(s) {
+  if (!s) return s;
+  let str = String(s).trim();
+  // Захватим веб-сервер из скобок (nginx/apache/litespeed/iis)
+  const serverMatch = str.match(/\b(nginx|apache|litespeed|caddy|iis)\b/i);
+  // Удалим всю скобочную часть с техническим содержимым
+  str = str.replace(/\s*\([^)]*\)\s*/g, '').trim();
+  if (serverMatch && !new RegExp('\\b' + serverMatch[1] + '\\b', 'i').test(str)) {
+    str = `${str} · ${serverMatch[1].toLowerCase()}`;
+  }
+  return str;
+}
+```
+
+Применяется в `execSummaryHtml` при выводе строки `CMS / сервер`.
+
+### Verified
+
+Разные кейсы:
+
+| Вход | Выход |
+|---|---|
+| `1C-Bitrix (X-Powered-CMS: Bitrix Site Manager, nginx)` | `1C-Bitrix · nginx` |
+| `1C-Bitrix` | `1C-Bitrix` |
+| `WordPress (5.8.1)` | `WordPress` |
+| `Tilda` | `Tilda` |
+| `1C-Bitrix · nginx` (уже чистый) | `1C-Bitrix · nginx` (без дублирования) |
+
+Перерендерил maxilac v1.15.2 на v1.16.4 — клиент теперь видит «1C-Bitrix · nginx», без HTTP-заголовка.
+
+### Files
+
+- `generate-report.js` — добавлен `cleanCmsInfo()` helper, применён в `execSummaryHtml`. `SKILL_VERSION = '1.16.4'`.
+- `SKILL.md` — `skillVersion: 1.16.4`.
+- `CLAUDE.md` — версия `1.16.4`.
+
+---
+
 ## [1.16.3] — 2026-04-10 — Phase + sort внутри фазы всегда derived (Rule 4)
 
 Патч-релиз: на v1.15.2 audit агент **2 раза** поставил `phase: "urgent"` для рекомендаций с `priority=high, difficulty=medium`, что нарушает Правило 4 (high/medium → month). Плюс сортировка внутри фазы не следовала Rule 4 (`priority desc → difficulty asc → estimateHours.total asc`) — задача с `total=4` шла раньше задачи с `total=3` в той же категории.
