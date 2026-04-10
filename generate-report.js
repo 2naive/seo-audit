@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.17.5';
+const SKILL_VERSION = '1.17.6';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -1490,7 +1490,9 @@ function buildHTML(data) {
 
     /* Мелкие компоненты — запрет разрыва внутри */
     .stat-grid { break-inside: avoid; }
-    .rec-card { break-inside: avoid; }
+    .rec-card { break-inside: avoid; page-break-inside: avoid; max-height: 260mm; overflow: hidden; }
+    .rec-code { max-height: 120mm; overflow: hidden; }
+    .rec-card::after { content: none; }
     .page-card { break-inside: avoid; }
     /* .phase-col — НЕ ставим break-inside: avoid, длинная «В этот месяц»
        (11+ задач) не помещается на страницу и ломает layout. Колонки внутри
