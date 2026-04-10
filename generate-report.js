@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.17.4';
+const SKILL_VERSION = '1.17.5';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -1523,12 +1523,11 @@ function buildHTML(data) {
     /* 3. Lighthouse */
     #lighthouse { break-before: page; }
 
-    /* 4. План действий — новая страница. Заголовок h2 + .phase-grid слитно.
-       phase-grid (контейнер 3 колонок) — break-inside: avoid, чтобы
-       заголовок не оторвался от колонок. Отдельные phase-col — разрешаем
-       разрыв внутри (длинный «В этот месяц» из 11 задач не влезает). */
-    #roadmap { break-before: page; }
-    .phase-grid { break-inside: avoid; }
+    /* 4. План действий — новая страница. Весь блок roadmap (заголовок +
+       описание + 3 колонки) неразрывен. Если не помещается на одну
+       страницу — Chrome растянет page или оставит overflow, но не
+       разорвёт заголовок от колонок. */
+    #roadmap { break-before: page; break-inside: avoid; }
 
     /* 5. Оценка трудозатрат */
     #effort { break-before: page; }
