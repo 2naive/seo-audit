@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.17.1';
+const SKILL_VERSION = '1.17.2';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -1479,7 +1479,15 @@ function buildHTML(data) {
   @media print {
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 0; max-width: 100%; }
-    .card { break-inside: avoid; margin-bottom: 14px; }
+
+    /* Orphans/widows — не оставлять одиночные строки на стыке страниц */
+    p, li, div { orphans: 3; widows: 3; }
+
+    /* Заголовки: НЕ отрывать от первого элемента контента.
+       Это решает проблему «h2 внизу страницы, контент на следующей» */
+    h2, h3 { break-after: avoid; }
+
+    /* Мелкие компоненты: запрет разрыва внутри (помещаются на одну страницу) */
     .stat-grid { break-inside: avoid; }
     .rec-card { break-inside: avoid; }
     .page-card { break-inside: avoid; }
@@ -1488,6 +1496,20 @@ function buildHTML(data) {
     .legend-card { break-inside: avoid; }
     .screenshot-frame { break-inside: avoid; max-height: 200mm; }
     tr { break-inside: avoid; }
+    .sr-block { break-inside: avoid; }
+
+    /* Крупные карточки: РАЗРЕШИТЬ разрыв внутри (не помещаются на A4).
+       h2 { break-after: avoid } выше уже гарантирует, что заголовок
+       не оторвётся от контента. Внутри крупных карточек Chrome будет
+       ломать между дочерними элементами (p, table, sr-block, phase-col),
+       не посередине текста — это корректное поведение.
+       Раньше .card { break-inside: avoid } запрещал разрыв для ВСЕХ
+       карточек, включая 1000+ px exec-summary / roadmap / scores, и
+       Chrome ломал хаотично (заголовок внизу, контент вверху, пустота). */
+    .card { margin-bottom: 14px; }
+    /* Маленькие card (how-to-read, toc, not-checked, methodology) — всё ещё avoid */
+    .how-to-read, .toc, .not-checked, .methodology { break-inside: avoid; }
+
     .cover { margin: 0; padding: 30mm 25mm; min-height: 297mm; }
   }
 </style>
