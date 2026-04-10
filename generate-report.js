@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.17.2';
+const SKILL_VERSION = '1.17.3';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -1480,14 +1480,13 @@ function buildHTML(data) {
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { padding: 0; max-width: 100%; }
 
-    /* Orphans/widows — не оставлять одиночные строки на стыке страниц */
+    /* Orphans/widows — не оставлять одиночные строки */
     p, li, div { orphans: 3; widows: 3; }
 
-    /* Заголовки: НЕ отрывать от первого элемента контента.
-       Это решает проблему «h2 внизу страницы, контент на следующей» */
+    /* Заголовки не отрывать от первого элемента контента */
     h2, h3 { break-after: avoid; }
 
-    /* Мелкие компоненты: запрет разрыва внутри (помещаются на одну страницу) */
+    /* Мелкие компоненты — запрет разрыва внутри */
     .stat-grid { break-inside: avoid; }
     .rec-card { break-inside: avoid; }
     .page-card { break-inside: avoid; }
@@ -1498,19 +1497,43 @@ function buildHTML(data) {
     tr { break-inside: avoid; }
     .sr-block { break-inside: avoid; }
 
-    /* Крупные карточки: РАЗРЕШИТЬ разрыв внутри (не помещаются на A4).
-       h2 { break-after: avoid } выше уже гарантирует, что заголовок
-       не оторвётся от контента. Внутри крупных карточек Chrome будет
-       ломать между дочерними элементами (p, table, sr-block, phase-col),
-       не посередине текста — это корректное поведение.
-       Раньше .card { break-inside: avoid } запрещал разрыв для ВСЕХ
-       карточек, включая 1000+ px exec-summary / roadmap / scores, и
-       Chrome ломал хаотично (заголовок внизу, контент вверху, пустота). */
+    /* Крупные карточки — разрыв внутри разрешён, но каждая секция
+       начинается с новой страницы (break-before: page).
+       Это даёт чистую структуру: каждый раздел отчёта = отдельный «лист». */
     .card { margin-bottom: 14px; }
-    /* Маленькие card (how-to-read, toc, not-checked, methodology) — всё ещё avoid */
     .how-to-read, .toc, .not-checked, .methodology { break-inside: avoid; }
 
+    /* ── ПРИНУДИТЕЛЬНЫЕ РАЗРЫВЫ СТРАНИЦ ── */
     .cover { margin: 0; padding: 30mm 25mm; min-height: 297mm; }
+
+    /* 1. Оценка / Главное — новая страница.
+       how-to-read начинает страницу, за ним exec-summary и stat-grid
+       — текут вместе до следующего break-before. */
+    #how-to-read { break-before: page; }
+
+    /* 2. Квадраты оценок + 10 категорий — новая страница (stat-grid → scores — единый поток) */
+    #scores { break-before: page; }
+
+    /* 3. Lighthouse — новая */
+    #lighthouse { break-before: page; }
+
+    /* 4. План действий — новая, неразрывен от 3 колонок */
+    #roadmap { break-before: page; break-inside: avoid; }
+
+    /* 5. Оценка трудозатрат — новая */
+    #effort { break-before: page; }
+
+    /* 6. Детализация рекомендаций — новая */
+    #recs { break-before: page; }
+
+    /* 7. Анализ уникальных типов страниц — новая */
+    #pages { break-before: page; }
+
+    /* 8. AEO/GEO — новая */
+    #aeo-geo { break-before: page; }
+
+    /* 9. Технические проверки — новая */
+    #technical { break-before: page; }
   }
 </style>
 </head>
