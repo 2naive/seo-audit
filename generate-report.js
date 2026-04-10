@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.17.6';
+const SKILL_VERSION = '1.17.7';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -707,7 +707,7 @@ function buildHTML(data) {
         <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px">
           <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">llms.txt</div>
           <div style="font-size:20px;font-weight:700;color:${llms.exists ? '#16a34a' : '#dc2626'}">${llms.exists ? '✓ найден' : '✗ отсутствует'}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">${llms.fullExists ? 'есть llms-full.txt' : 'экспериментальный стандарт для AI-руководства'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${llms.fullExists ? 'llms-full.txt найден' : 'инструкции для AI-систем о сайте'}</div>
         </div>
         <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px">
           <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:6px">AI-краулеры</div>
@@ -770,9 +770,6 @@ function buildHTML(data) {
         </tbody>
       </table>` : ''}
 
-      <p style="margin-top:14px;font-size:12px;color:var(--muted)">
-        AEO/GEO — относительно новая дисциплина. Основные сигналы готовности: открытый доступ AI-краулерам, наличие <code>llms.txt</code>, краткие лид-абзацы с прямыми ответами, FAQ-секции с разметкой, Schema.org Article/Product/Organization для контекста.
-      </p>
     </div>`;
   })();
 
