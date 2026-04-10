@@ -5,7 +5,7 @@
  * Generates: report.html + report.pdf (via Chrome headless)
  */
 
-const SKILL_VERSION = '1.17.3';
+const SKILL_VERSION = '1.17.4';
 
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require('fs');
 const { execSync } = require('child_process');
@@ -496,6 +496,7 @@ function buildHTML(data) {
     ? `Покрыто в этом отчёте: ${coverage.automatedCount || coverage.blocksCovered?.length || 0} блоков · Требует отдельной работы: ${coverage.manualCount || coverage.blocksManual?.length || 0} блоков`
     : '';
   const statsHtml = `
+  <div id="stats-coverage">
   <div class="stat-grid">
     <div class="stat">
       <div class="stat-value" style="color:#1e293b">${stats.pagesAnalyzed ?? '—'}</div>
@@ -514,7 +515,8 @@ function buildHTML(data) {
       <div class="stat-label">🟢 Хорошо</div>
     </div>
   </div>
-  ${coverageInfo ? `<div class="coverage-line">${coverageInfo}</div>` : ''}`;
+  ${coverageInfo ? `<div class="coverage-line">${coverageInfo}</div>` : ''}
+  </div>`;
 
   // ── Section: Scores table ───────────────────────────────────────────────────
   const scoresRows = scores ? Object.entries(scores).filter(([,v]) => v !== null).map(([cat, val]) => {
@@ -1490,7 +1492,9 @@ function buildHTML(data) {
     .stat-grid { break-inside: avoid; }
     .rec-card { break-inside: avoid; }
     .page-card { break-inside: avoid; }
-    .phase-col { break-inside: avoid; }
+    /* .phase-col — НЕ ставим break-inside: avoid, длинная «В этот месяц»
+       (11+ задач) не помещается на страницу и ломает layout. Колонки внутри
+       .phase-grid могут разрываться между элементами <li>. */
     .tech-block { break-inside: avoid; }
     .legend-card { break-inside: avoid; }
     .screenshot-frame { break-inside: avoid; max-height: 200mm; }
@@ -1506,34 +1510,46 @@ function buildHTML(data) {
     /* ── ПРИНУДИТЕЛЬНЫЕ РАЗРЫВЫ СТРАНИЦ ── */
     .cover { margin: 0; padding: 30mm 25mm; min-height: 297mm; }
 
-    /* 1. Оценка / Главное — новая страница.
-       how-to-read начинает страницу, за ним exec-summary и stat-grid
-       — текут вместе до следующего break-before. */
-    #how-to-read { break-before: page; }
+    /* TOC + «Как читать» идут слитно после обложки (без break-before) */
 
-    /* 2. Квадраты оценок + 10 категорий — новая страница (stat-grid → scores — единый поток) */
-    #scores { break-before: page; }
+    /* 1. «Оценка / Главное» — новая страница. exec-summary + strengths-risks
+       не разрывается (strengths-risks = sr-block, уже break-inside: avoid) */
+    #exec-summary { break-before: page; }
 
-    /* 3. Lighthouse — новая */
+    /* 2. Стат-квадраты + «Покрыто в этом отчёте» + 10 категорий — новая страница, слитно */
+    #stats-coverage { break-before: page; }
+    #scores { break-before: avoid; }
+
+    /* 3. Lighthouse */
     #lighthouse { break-before: page; }
 
-    /* 4. План действий — новая, неразрывен от 3 колонок */
-    #roadmap { break-before: page; break-inside: avoid; }
+    /* 4. План действий — новая страница. Заголовок h2 + .phase-grid слитно.
+       phase-grid (контейнер 3 колонок) — break-inside: avoid, чтобы
+       заголовок не оторвался от колонок. Отдельные phase-col — разрешаем
+       разрыв внутри (длинный «В этот месяц» из 11 задач не влезает). */
+    #roadmap { break-before: page; }
+    .phase-grid { break-inside: avoid; }
 
-    /* 5. Оценка трудозатрат — новая */
+    /* 5. Оценка трудозатрат */
     #effort { break-before: page; }
 
-    /* 6. Детализация рекомендаций — новая */
+    /* 6. Детализация рекомендаций */
     #recs { break-before: page; }
 
-    /* 7. Анализ уникальных типов страниц — новая */
+    /* Фаза «Стратегия» внутри детализации — с новой страницы */
+    .recs-phase:last-child { break-before: page; }
+
+    /* 7. Анализ уникальных типов страниц */
     #pages { break-before: page; }
 
-    /* 8. AEO/GEO — новая */
+    /* 8. AEO/GEO */
     #aeo-geo { break-before: page; }
 
-    /* 9. Технические проверки — новая */
+    /* 9. Технические проверки */
     #technical { break-before: page; }
+
+    /* 10. Скриншоты */
+    #screenshots { break-before: page; }
   }
 </style>
 </head>
